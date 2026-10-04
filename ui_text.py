@@ -65,4 +65,17 @@ EXPLANATIONS = {
         "tersidir. Bunlar gecikmeli göstergelerdir, her zaman doğru sonuç "
         "vermeyebilir."
     ),
+    "normalized_return": (
+        "Normalize edilmiş getiri, farklı fiyat seviyelerindeki hisselerin "
+        "performansını adil şekilde karşılaştırabilmek için her hissenin "
+        "başlangıç fiyatını 100 kabul ederek yeniden ölçeklendirir."
+    ),
+    "correlation": (
+        "Korelasyon katsayısı, iki hissenin günlük getirilerinin birlikte "
+        "hareket etme derecesini -1 ile +1 arasında ölçer. +1'e yakın "
+        "değerler aynı yönde, -1'e yakın değerler ters yönde hareketi "
+        "gösterir; 0'a yakın değerler aralarında belirgin bir doğrusal "
+        "ilişki olmadığını gösterir. Geçmiş korelasyon, gelecekte aynı "
+        "kalacağının garantisi değildir."
+    ),
 }

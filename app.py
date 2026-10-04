@@ -36,8 +36,11 @@ COLOR_MUTED = "#898781"
 COLOR_GRID = "#2c2c2a"
 COLOR_TEXT = "#FAFAFA"
 COLOR_NEUTRAL = "#383835"
+COLOR_YELLOW = "#c98500"
+COLOR_DIV_RED = "#e66767"
 
 HEATMAP_COLS = 6
+CATEGORICAL_PALETTE = [COLOR_BLUE, COLOR_ORANGE, COLOR_AQUA, COLOR_YELLOW, COLOR_MAGENTA]
 
 
 def build_detail_figure(df, sma50, sma200, ema20, bollinger, rsi_series, macd_df, ticker):
@@ -396,8 +399,138 @@ def render_tarama_tab() -> None:
     )
 
 
+def build_normalized_return_figure(histories: dict, tickers: list[str]):
+    fig = go.Figure()
+    for i, ticker in enumerate(tickers):
+        close = histories[ticker]["Close"]
+        normalized = close / close.iloc[0] * 100
+        fig.add_trace(
+            go.Scatter(
+                x=normalized.index, y=normalized, mode="lines", name=ticker,
+                line=dict(color=CATEGORICAL_PALETTE[i % len(CATEGORICAL_PALETTE)], width=2),
+            )
+        )
+    fig.add_hline(y=100, line_dash="dash", line_color=COLOR_MUTED)
+
+    fig.update_yaxes(title_text="Normalize Edilmiş Getiri (Başlangıç = 100)", showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
+    fig.update_xaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
+    fig.update_layout(
+        height=500,
+        hovermode="x unified",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLOR_TEXT),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=10, r=10, t=30, b=10),
+    )
+    return fig
+
+
+def build_correlation_heatmap_figure(corr_df: pd.DataFrame):
+    tickers = corr_df.columns.tolist()
+    z = corr_df.values
+    text = [[f"{value:.2f}" for value in row] for row in z]
+
+    fig = go.Figure(
+        go.Heatmap(
+            z=z,
+            x=tickers,
+            y=tickers,
+            text=text,
+            texttemplate="%{text}",
+            textfont={"size": 12, "color": "#FFFFFF"},
+            colorscale=[[0, COLOR_DIV_RED], [0.5, COLOR_NEUTRAL], [1, COLOR_BLUE]],
+            zmid=0,
+            zmin=-1,
+            zmax=1,
+            xgap=4,
+            ygap=4,
+            showscale=True,
+            colorbar=dict(title="r", tickfont=dict(color=COLOR_TEXT)),
+        )
+    )
+    fig.update_yaxes(autorange="reversed", tickfont=dict(color=COLOR_TEXT), showgrid=False)
+    fig.update_xaxes(tickfont=dict(color=COLOR_TEXT), showgrid=False)
+    fig.update_layout(
+        height=max(300, 90 * len(tickers)),
+        margin=dict(l=10, r=10, t=10, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLOR_TEXT),
+    )
+    return fig
+
+
 def render_karsilastirma_tab() -> None:
-    st.info("Bu sekme bir sonraki aşamada eklenecek.")
+    default_selection = [t for t in ("AKBNK", "GARAN", "THYAO") if t in BIST30_TICKERS]
+
+    col_tickers, col_dates = st.columns([2, 1])
+    with col_tickers:
+        selected = st.multiselect(
+            "Hisseler (2-5 adet)",
+            options=list(BIST30_TICKERS.keys()),
+            default=default_selection,
+            format_func=lambda t: f"{t} — {BIST30_TICKERS[t]}",
+            max_selections=5,
+        )
+    with col_dates:
+        today = date.today()
+        default_start = today - timedelta(days=365)
+        date_range = st.date_input(
+            "Tarih aralığı",
+            value=(default_start, today),
+            min_value=date(2005, 1, 1),
+            max_value=today,
+            key="karsilastirma_tarih",
+        )
+
+    if len(selected) < 2:
+        st.info("Karşılaştırmak için en az 2 hisse seçin.")
+        return
+
+    if not isinstance(date_range, tuple) or len(date_range) != 2:
+        st.info("Lütfen bir başlangıç ve bitiş tarihi seçin.")
+        return
+
+    start_date, end_date = date_range
+    if start_date >= end_date:
+        st.warning("Başlangıç tarihi, bitiş tarihinden önce olmalıdır.")
+        return
+
+    histories = {}
+    for ticker in selected:
+        try:
+            histories[ticker] = get_price_history(ticker, start_date, end_date)
+        except DataFetchError as exc:
+            st.error(str(exc))
+
+    valid_tickers = [t for t in selected if t in histories]
+    if len(valid_tickers) < 2:
+        st.warning("Karşılaştırma için yeterli veri alınamadı.")
+        return
+
+    st.markdown("**Normalize Edilmiş Getiri (Başlangıç = 100)**")
+    return_fig = build_normalized_return_figure(histories, valid_tickers)
+    st.plotly_chart(return_fig, width="stretch")
+
+    with st.expander(f"{EXPANDER_LABEL} (Normalize Getiri)"):
+        st.write(EXPLANATIONS["normalized_return"])
+
+    st.markdown("**Korelasyon Isı Haritası**")
+
+    returns_df = pd.DataFrame(
+        {t: histories[t]["Close"].pct_change() for t in valid_tickers}
+    ).dropna()
+
+    if len(returns_df) < 2:
+        st.info("Korelasyon hesaplamak için yeterli ortak veri yok.")
+    else:
+        corr_df = returns_df.corr()
+        corr_fig = build_correlation_heatmap_figure(corr_df)
+        st.plotly_chart(corr_fig, width="stretch")
+
+    with st.expander(f"{EXPANDER_LABEL} (Korelasyon)"):
+        st.write(EXPLANATIONS["correlation"])
 
 
 st.set_page_config(
