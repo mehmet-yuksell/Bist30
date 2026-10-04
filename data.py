@@ -9,8 +9,6 @@ import streamlit as st
 import yfinance as yf
 
 from config import YAHOO_SUFFIX
-
-BIST_ALL_CSV_PATH = Path(__file__).parent / "data" / "bist_all.csv"
 from ui_text import (
     ERROR_INCOMPLETE_DATA,
     ERROR_NETWORK,
@@ -18,6 +16,8 @@ from ui_text import (
     ERROR_NO_DATA,
     ERROR_NO_DATA_BATCH,
 )
+
+BIST_ALL_CSV_PATH = Path(__file__).parent / "data" / "bist_all.csv"
 
 
 class DataFetchError(Exception):
@@ -62,6 +62,42 @@ def get_price_history(ticker: str, start_date: date, end_date: date) -> pd.DataF
         raise DataFetchError(ERROR_NO_DATA.format(ticker=ticker))
 
     # yfinance tek hisse için de MultiIndex kolon döndürebiliyor (Price, Ticker).
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    df = df.dropna(how="all")
+    if df.empty:
+        raise DataFetchError(ERROR_INCOMPLETE_DATA.format(ticker=ticker))
+
+    return df
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_adjusted_price_history(ticker: str, start_date: date, end_date: date) -> pd.DataFrame:
+    """Sinyal Karnesi (backtest) için bedelsiz/temettü düzeltmeli OHLC verisi döndürür.
+
+    Hisse Detay'daki mum grafiği kasıtlı olarak HAM (düzeltilmemiş) fiyatları kullanır —
+    o günün gerçekte işlem gördüğü fiyatı göstermek için. Backtest ise gerçek getiriyi
+    doğru hesaplamak için düzeltilmiş (auto_adjust=True) fiyat gerektirir; aksi halde bir
+    bedelsiz sermaye artırımı günü, gerçekte yaşanmamış bir fiyat düşüşü/getirisi olarak
+    hesaba katılır. Bu iki fonksiyonun ayrı olması bilinçli bir tasarım tercihidir.
+    """
+    yahoo_ticker = f"{ticker}{YAHOO_SUFFIX}"
+
+    try:
+        df = yf.download(
+            yahoo_ticker,
+            start=start_date,
+            end=end_date + timedelta(days=1),
+            progress=False,
+            auto_adjust=True,
+        )
+    except Exception as exc:
+        raise DataFetchError(ERROR_NETWORK.format(ticker=ticker)) from exc
+
+    if df is None or df.empty:
+        raise DataFetchError(ERROR_NO_DATA.format(ticker=ticker))
+
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 

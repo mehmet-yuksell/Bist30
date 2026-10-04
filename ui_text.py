@@ -78,4 +78,20 @@ EXPLANATIONS = {
         "ilişki olmadığını gösterir. Geçmiş korelasyon, gelecekte aynı "
         "kalacağının garantisi değildir."
     ),
+    "backtest": (
+        "Sinyal Karnesi, seçtiğiniz hissede üç basit teknik sinyalin geçmişte "
+        "nasıl performans gösterdiğini gösterir. Sinyal bir günün kapanışında "
+        "oluşur, işlem ERTESİ GÜNÜN açılışında gerçekleştirilir (ileriye bakış "
+        "hatası yoktur). Parametreler (RSI 14/30/70, MACD 12/26/9, SMA 50/200) "
+        "sabittir; bu hisseye özel olarak optimize edilmemiştir."
+    ),
 }
+
+BACKTEST_DISCLAIMER = (
+    "Geçmiş performans gelecek için garanti değildir. Basitleştirilmiş bir "
+    "modeldir; vergi, kayma (slippage) ve likidite dikkate alınmamıştır."
+)
+
+BACKTEST_INSUFFICIENT_SAMPLE = (
+    "{name}: örnek sayısı yetersiz ({count} işlem), sonuç güvenilir değildir."
+)

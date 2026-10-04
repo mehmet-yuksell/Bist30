@@ -6,9 +6,11 @@ import streamlit as st
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+from backtest import run_buy_and_hold, run_macd_strategy, run_rsi_strategy, run_sma_cross_strategy
 from config import BIST30_TICKERS
 from data import (
     DataFetchError,
+    get_adjusted_price_history,
     get_multiple_price_histories,
     get_price_history,
     load_all_bist_symbols,
@@ -23,6 +25,8 @@ from signals import (
 )
 from ui_text import (
     APP_TITLE,
+    BACKTEST_DISCLAIMER,
+    BACKTEST_INSUFFICIENT_SAMPLE,
     DISCLAIMER,
     EXPANDER_LABEL,
     EXPLANATIONS,
@@ -194,6 +198,160 @@ def render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df):
         st.write(EXPLANATIONS["golden_death_cross"])
 
 
+def build_equity_curve_figure(results: list) -> go.Figure:
+    fig = go.Figure()
+    for i, result in enumerate(results):
+        fig.add_trace(
+            go.Scatter(
+                x=result.equity_curve.index,
+                y=result.equity_curve.values,
+                mode="lines",
+                name=result.name,
+                line=dict(color=CATEGORICAL_PALETTE[i % len(CATEGORICAL_PALETTE)], width=2),
+            )
+        )
+    fig.add_hline(y=100, line_dash="dash", line_color=COLOR_MUTED)
+
+    fig.update_yaxes(title_text="Getiri (Başlangıç = 100)", showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
+    fig.update_xaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
+    fig.update_layout(
+        height=420,
+        hovermode="x unified",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLOR_TEXT),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=10, r=10, t=30, b=10),
+    )
+    return fig
+
+
+def build_trade_markers_figure(close, result, ticker: str) -> go.Figure:
+    entry_dates = [t.entry_date for t in result.trades]
+    entry_prices = [t.entry_price for t in result.trades]
+    exit_dates = [t.exit_date for t in result.trades if t.is_closed]
+    exit_prices = [t.exit_price for t in result.trades if t.is_closed]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=close.index, y=close.values, mode="lines", name=ticker,
+            line=dict(color=COLOR_MUTED, width=1.5),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=entry_dates, y=entry_prices, mode="markers", name="Giriş",
+            marker=dict(symbol="triangle-up", size=11, color=COLOR_GOOD),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=exit_dates, y=exit_prices, mode="markers", name="Çıkış",
+            marker=dict(symbol="triangle-down", size=11, color=COLOR_CRITICAL),
+        )
+    )
+
+    fig.update_yaxes(title_text="Fiyat (TL)", showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
+    fig.update_xaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
+    fig.update_layout(
+        height=380,
+        hovermode="x unified",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLOR_TEXT),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=10, r=10, t=30, b=10),
+    )
+    return fig
+
+
+def render_sinyal_karnesi(ticker: str, start_date, end_date) -> None:
+    st.subheader("Sinyal Karnesi")
+    st.caption(
+        "Seçtiğiniz hissede üç basit teknik sinyalin geçmiş performansı. "
+        "Sinyal gün sonunda oluşur, işlem ertesi günün açılışında gerçekleşir."
+    )
+
+    cost_pct = st.number_input(
+        "İşlem maliyeti (%, her yönde)",
+        min_value=0.0, max_value=5.0, value=0.1, step=0.05,
+        help="Alış ve satışta ayrı ayrı uygulanan varsayımsal komisyon/maliyet.",
+    )
+
+    try:
+        adj_df = get_adjusted_price_history(ticker, start_date, end_date)
+    except DataFetchError as exc:
+        st.error(str(exc))
+        return
+
+    if len(adj_df) < 210:
+        st.info(
+            "Sinyal Karnesi için en az ~210 günlük veri gerekir (200 günlük ortalama "
+            "hesaplanabilsin diye). Lütfen tarih aralığını genişletin."
+        )
+        return
+
+    results = {
+        "rsi": run_rsi_strategy(adj_df, cost_pct),
+        "macd": run_macd_strategy(adj_df, cost_pct),
+        "sma": run_sma_cross_strategy(adj_df, cost_pct),
+        "buy_hold": run_buy_and_hold(adj_df, cost_pct),
+    }
+
+    summary_rows = []
+    for result in results.values():
+        summary_rows.append(
+            {
+                "Strateji": result.name,
+                "Toplam Getiri (%)": round(result.total_return_pct, 2),
+                "Maks. Düşüş (%)": round(result.max_drawdown_pct, 2),
+                "İşlem Sayısı": float(result.num_trades) if result.num_trades is not None else np.nan,
+                "Kazanç Oranı (%)": (
+                    round(result.win_rate_pct, 1) if result.win_rate_pct is not None else np.nan
+                ),
+            }
+        )
+    summary_df = pd.DataFrame(summary_rows)
+
+    st.dataframe(
+        summary_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Toplam Getiri (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Maks. Düşüş (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "İşlem Sayısı": st.column_config.NumberColumn(format="%.0f"),
+            "Kazanç Oranı (%)": st.column_config.NumberColumn(format="%.1f%%"),
+        },
+    )
+
+    for key in ("rsi", "macd", "sma"):
+        result = results[key]
+        if result.num_trades is not None and result.num_trades < 10:
+            st.warning(
+                BACKTEST_INSUFFICIENT_SAMPLE.format(name=result.name, count=result.num_trades)
+            )
+
+    st.markdown("**Getiri Eğrileri Karşılaştırması**")
+    equity_fig = build_equity_curve_figure(list(results.values()))
+    st.plotly_chart(equity_fig, width="stretch")
+
+    st.markdown("**İşlem Noktaları**")
+    strategy_choice = st.selectbox(
+        "Hangi stratejinin işlem noktalarını görmek istersiniz?",
+        options=["rsi", "macd", "sma"],
+        format_func=lambda k: results[k].name,
+    )
+    trade_fig = build_trade_markers_figure(adj_df["Close"], results[strategy_choice], ticker)
+    st.plotly_chart(trade_fig, width="stretch")
+
+    with st.expander(f"{EXPANDER_LABEL} (Sinyal Karnesi)"):
+        st.write(EXPLANATIONS["backtest"])
+
+    st.caption(BACKTEST_DISCLAIMER)
+
+
 def render_hisse_detay_tab() -> None:
     all_stocks = load_all_bist_symbols()
     all_symbols = sorted(all_stocks.keys())
@@ -286,6 +444,8 @@ def render_hisse_detay_tab() -> None:
         st.write(EXPLANATIONS["macd"])
 
     render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
+
+    render_sinyal_karnesi(ticker, start_date, end_date)
 
 
 def build_heatmap_figure(tickers: list[str], changes: list[float]):
