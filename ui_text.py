@@ -28,6 +28,10 @@ ERROR_NETWORK_BATCH = (
 
 ERROR_NO_DATA_BATCH = "BIST 30 hisseleri için veri alınamadı."
 
+ERROR_FX_UNAVAILABLE = (
+    "USD/TL kuru verisi alınamadı. Lütfen tekrar deneyin veya TL görünümünü kullanın."
+)
+
 TAB_HISSE_DETAY = "Hisse Detay"
 TAB_TARAMA = "BIST 30 Tarama"
 TAB_KARSILASTIRMA = "Karşılaştırma"
@@ -84,6 +88,14 @@ EXPLANATIONS = {
         "oluşur, işlem ERTESİ GÜNÜN açılışında gerçekleştirilir (ileriye bakış "
         "hatası yoktur). Parametreler (RSI 14/30/70, MACD 12/26/9, SMA 50/200) "
         "sabittir; bu hisseye özel olarak optimize edilmemiştir."
+    ),
+    "usd_view": (
+        "Türk Lirası yüksek enflasyon ve kur hareketleri nedeniyle zaman "
+        "içinde değer kaybedebilir; bu da TL bazlı bir grafikte fiyatın "
+        "'yükseliyor' görünmesine ama aslında dolar bazında aynı kaldığına "
+        "ya da gerilediğine yol açabilir. Dolar bazında bakmak, kur "
+        "etkisinden arındırılmış, uluslararası yatırımcıların gördüğüne "
+        "daha yakın bir performans resmi verir."
     ),
 }
 

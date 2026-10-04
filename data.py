@@ -10,12 +10,15 @@ import yfinance as yf
 
 from config import YAHOO_SUFFIX
 from ui_text import (
+    ERROR_FX_UNAVAILABLE,
     ERROR_INCOMPLETE_DATA,
     ERROR_NETWORK,
     ERROR_NETWORK_BATCH,
     ERROR_NO_DATA,
     ERROR_NO_DATA_BATCH,
 )
+
+USDTRY_TICKER = "USDTRY=X"
 
 BIST_ALL_CSV_PATH = Path(__file__).parent / "data" / "bist_all.csv"
 
@@ -106,6 +109,33 @@ def get_adjusted_price_history(ticker: str, start_date: date, end_date: date) ->
         raise DataFetchError(ERROR_INCOMPLETE_DATA.format(ticker=ticker))
 
     return df
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_usdtry_rate(start_date: date, end_date: date) -> pd.Series:
+    """USD/TL kapanış kuru serisini döndürür (TL/USD görünümü için)."""
+    try:
+        df = yf.download(
+            USDTRY_TICKER,
+            start=start_date,
+            end=end_date + timedelta(days=1),
+            progress=False,
+            auto_adjust=False,
+        )
+    except Exception as exc:
+        raise DataFetchError(ERROR_FX_UNAVAILABLE) from exc
+
+    if df is None or df.empty:
+        raise DataFetchError(ERROR_FX_UNAVAILABLE)
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    rate = df["Close"].dropna()
+    if rate.empty:
+        raise DataFetchError(ERROR_FX_UNAVAILABLE)
+
+    return rate
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

@@ -13,6 +13,7 @@ from data import (
     get_adjusted_price_history,
     get_multiple_price_histories,
     get_price_history,
+    get_usdtry_rate,
     load_all_bist_symbols,
 )
 from indicators import bollinger_bands, ema, macd, rsi, sma
@@ -52,7 +53,7 @@ HEATMAP_COLS = 6
 CATEGORICAL_PALETTE = [COLOR_BLUE, COLOR_ORANGE, COLOR_AQUA, COLOR_YELLOW, COLOR_MAGENTA]
 
 
-def build_detail_figure(df, sma50, sma200, ema20, bollinger, rsi_series, macd_df, ticker):
+def build_detail_figure(df, sma50, sma200, ema20, bollinger, rsi_series, macd_df, ticker, currency_label="TL"):
     fig = make_subplots(
         rows=4,
         cols=1,
@@ -158,7 +159,7 @@ def build_detail_figure(df, sma50, sma200, ema20, bollinger, rsi_series, macd_df
         row=4, col=1,
     )
 
-    fig.update_yaxes(title_text="Fiyat (TL)", row=1, col=1)
+    fig.update_yaxes(title_text=f"Fiyat ({currency_label})", row=1, col=1)
     fig.update_yaxes(title_text="Hacim", row=2, col=1)
     fig.update_yaxes(title_text="RSI", range=[0, 100], row=3, col=1)
     fig.update_yaxes(title_text="MACD", row=4, col=1)
@@ -401,6 +402,40 @@ def render_hisse_detay_tab() -> None:
         st.error(str(exc))
         return
 
+    currency = st.segmented_control(
+        "Para birimi",
+        options=["TL", "USD"],
+        default="TL",
+        key="hisse_detay_currency",
+    )
+    currency_label = "TL"
+
+    if currency == "USD":
+        try:
+            fx_rate = get_usdtry_rate(start_date, end_date)
+        except DataFetchError as exc:
+            st.error(str(exc))
+        else:
+            fx_aligned = fx_rate.reindex(df.index).ffill()
+            valid_mask = fx_aligned.notna()
+            if not valid_mask.all():
+                df = df.loc[valid_mask]
+                fx_aligned = fx_aligned.loc[valid_mask]
+            if df.empty:
+                st.warning(
+                    "USD/TL kuru bu tarih aralığı için hizalanamadı; TL görünümü kullanılıyor."
+                )
+                df = get_price_history(ticker, start_date, end_date)
+            else:
+                df = df.copy()
+                df[["Open", "High", "Low", "Close"]] = df[["Open", "High", "Low", "Close"]].div(
+                    fx_aligned, axis=0
+                )
+                currency_label = "USD"
+
+        with st.expander(f"{EXPANDER_LABEL} (Dolar Bazlı Görünüm)"):
+            st.write(EXPLANATIONS["usd_view"])
+
     close = df["Close"]
 
     st.markdown("**Göstergeler**")
@@ -435,6 +470,7 @@ def render_hisse_detay_tab() -> None:
         rsi_series=rsi_series,
         macd_df=macd_df,
         ticker=ticker,
+        currency_label=currency_label,
     )
     st.plotly_chart(fig, width="stretch")
 
