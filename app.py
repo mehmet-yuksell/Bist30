@@ -170,13 +170,16 @@ def build_detail_figure(df, sma50, sma200, ema20, bollinger, rsi_series, macd_df
     fig.update_yaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
 
     fig.update_layout(
-        height=850,
+        height=930,
         hovermode="x unified",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=COLOR_TEXT),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(
+            orientation="h", yanchor="top", y=1.0, xanchor="left", x=0,
+            font=dict(size=11),
+        ),
+        margin=dict(l=10, r=10, t=135, b=10),
     )
 
     return fig
@@ -217,13 +220,16 @@ def build_equity_curve_figure(results: list) -> go.Figure:
     fig.update_yaxes(title_text="Getiri (Başlangıç = 100)", showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
     fig.update_xaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
     fig.update_layout(
-        height=420,
+        height=460,
         hovermode="x unified",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=COLOR_TEXT),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(
+            orientation="h", yanchor="top", y=1.0, xanchor="left", x=0,
+            font=dict(size=11),
+        ),
+        margin=dict(l=10, r=10, t=70, b=10),
     )
     return fig
 
@@ -257,13 +263,16 @@ def build_trade_markers_figure(close, result, ticker: str) -> go.Figure:
     fig.update_yaxes(title_text="Fiyat (TL)", showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
     fig.update_xaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
     fig.update_layout(
-        height=380,
+        height=410,
         hovermode="x unified",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=COLOR_TEXT),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(
+            orientation="h", yanchor="top", y=1.0, xanchor="left", x=0,
+            font=dict(size=11),
+        ),
+        margin=dict(l=10, r=10, t=60, b=10),
     )
     return fig
 
@@ -631,13 +640,16 @@ def build_normalized_return_figure(histories: dict, tickers: list[str]):
     fig.update_yaxes(title_text="Normalize Edilmiş Getiri (Başlangıç = 100)", showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
     fig.update_xaxes(showgrid=True, gridcolor=COLOR_GRID, zeroline=False)
     fig.update_layout(
-        height=500,
+        height=540,
         hovermode="x unified",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=COLOR_TEXT),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(
+            orientation="h", yanchor="top", y=1.0, xanchor="left", x=0,
+            font=dict(size=11),
+        ),
+        margin=dict(l=10, r=10, t=70, b=10),
     )
     return fig
 
