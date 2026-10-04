@@ -7,6 +7,8 @@ DISCLAIMER = (
     "gecikmeli olabilir. Eğitim amaçlı bir projedir."
 )
 
+FOOTER_CREDIT = "Mehmet Yüksel © 2026"
+
 ERROR_NETWORK = (
     "{ticker} için veri alınırken bir ağ hatası oluştu. Lütfen internet "
     "bağlantınızı kontrol edip tekrar deneyin."

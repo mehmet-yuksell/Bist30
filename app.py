@@ -31,6 +31,7 @@ from ui_text import (
     DISCLAIMER,
     EXPANDER_LABEL,
     EXPLANATIONS,
+    FOOTER_CREDIT,
     TAB_HISSE_DETAY,
     TAB_KARSILASTIRMA,
     TAB_TARAMA,
@@ -775,3 +776,4 @@ with tab3:
 
 st.divider()
 st.caption(DISCLAIMER)
+st.caption(FOOTER_CREDIT)
