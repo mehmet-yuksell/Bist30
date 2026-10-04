@@ -1,18 +1,20 @@
 from datetime import date, timedelta
 
 import numpy as np
+import pandas as pd
 import streamlit as st
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 from config import BIST30_TICKERS
-from data import DataFetchError, get_price_history
+from data import DataFetchError, get_multiple_price_histories, get_price_history
 from indicators import bollinger_bands, ema, macd, rsi, sma
 from signals import (
     describe_golden_death_cross,
     describe_macd_cross,
     describe_price_vs_ma,
     describe_rsi,
+    trend_label,
 )
 from ui_text import (
     APP_TITLE,
@@ -33,6 +35,9 @@ COLOR_MAGENTA = "#d55181"
 COLOR_MUTED = "#898781"
 COLOR_GRID = "#2c2c2a"
 COLOR_TEXT = "#FAFAFA"
+COLOR_NEUTRAL = "#383835"
+
+HEATMAP_COLS = 6
 
 
 def build_detail_figure(df, sma50, sma200, ema20, bollinger, rsi_series, macd_df, ticker):
@@ -261,8 +266,134 @@ def render_hisse_detay_tab() -> None:
     render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
 
 
+def build_heatmap_figure(tickers: list[str], changes: list[float]):
+    n = len(tickers)
+    n_rows = (n + HEATMAP_COLS - 1) // HEATMAP_COLS
+
+    z = [[None] * HEATMAP_COLS for _ in range(n_rows)]
+    text = [[""] * HEATMAP_COLS for _ in range(n_rows)]
+
+    for idx, (ticker, chg) in enumerate(zip(tickers, changes)):
+        r, c = divmod(idx, HEATMAP_COLS)
+        z[r][c] = chg
+        text[r][c] = f"{ticker}<br>{chg:+.2f}%"
+
+    max_abs = max(2.0, max(abs(c) for c in changes))
+
+    fig = go.Figure(
+        go.Heatmap(
+            z=z,
+            text=text,
+            texttemplate="%{text}",
+            textfont={"size": 12, "color": "#FFFFFF"},
+            colorscale=[[0, COLOR_CRITICAL], [0.5, COLOR_NEUTRAL], [1, COLOR_GOOD]],
+            zmid=0,
+            zmin=-max_abs,
+            zmax=max_abs,
+            xgap=4,
+            ygap=4,
+            showscale=True,
+            colorbar=dict(title="%", tickfont=dict(color=COLOR_TEXT)),
+            hoverinfo="skip",
+        )
+    )
+    fig.update_yaxes(
+        autorange="reversed", showticklabels=False, showgrid=False,
+        zeroline=False, showline=False, ticks="",
+    )
+    fig.update_xaxes(
+        showticklabels=False, showgrid=False, zeroline=False,
+        showline=False, ticks="",
+    )
+    fig.update_layout(
+        height=110 * n_rows,
+        margin=dict(l=10, r=10, t=10, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLOR_TEXT),
+    )
+    return fig
+
+
 def render_tarama_tab() -> None:
-    st.info("Bu sekme bir sonraki aşamada eklenecek.")
+    tickers = tuple(BIST30_TICKERS.keys())
+
+    try:
+        histories = get_multiple_price_histories(tickers)
+    except DataFetchError as exc:
+        st.error(str(exc))
+        return
+
+    rows = []
+    for ticker in tickers:
+        df = histories.get(ticker)
+        if df is None or len(df) < 2:
+            continue
+
+        close = df["Close"]
+        last_price = close.iloc[-1]
+        prev_price = close.iloc[-2]
+        daily_change = (last_price - prev_price) / prev_price * 100
+        rsi_value = rsi(close, 14).iloc[-1]
+        sma50_value = sma(close, 50).iloc[-1]
+        sma200_value = sma(close, 200).iloc[-1]
+
+        rows.append(
+            {
+                "Hisse": ticker,
+                "Şirket": BIST30_TICKERS[ticker],
+                "Son Fiyat": round(float(last_price), 2),
+                "Günlük Değişim (%)": round(float(daily_change), 2),
+                "RSI": round(float(rsi_value), 1) if pd.notna(rsi_value) else None,
+                "Trend": trend_label(sma50_value, sma200_value),
+            }
+        )
+
+    if not rows:
+        st.warning("Hiçbir hisse için veri alınamadı.")
+        return
+
+    table_df = pd.DataFrame(rows)
+
+    missing_count = len(tickers) - len(rows)
+    if missing_count > 0:
+        st.caption(f"{missing_count} hisse için veri alınamadı ve tablodan çıkarıldı.")
+
+    st.markdown("**Günlük Değişim Isı Haritası**")
+    heatmap_fig = build_heatmap_figure(
+        table_df["Hisse"].tolist(), table_df["Günlük Değişim (%)"].tolist()
+    )
+    st.plotly_chart(heatmap_fig, width="stretch")
+
+    st.markdown("**Filtrele**")
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        trend_options = sorted(table_df["Trend"].unique())
+        selected_trends = st.multiselect(
+            "Trend durumu", trend_options, default=trend_options
+        )
+    with filter_col2:
+        search = st.text_input("Hisse kodu veya şirket adı ara", "")
+
+    filtered_df = table_df[table_df["Trend"].isin(selected_trends)]
+    if search:
+        mask = filtered_df["Hisse"].str.contains(
+            search, case=False
+        ) | filtered_df["Şirket"].str.contains(search, case=False)
+        filtered_df = filtered_df[mask]
+
+    st.dataframe(
+        filtered_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Son Fiyat": st.column_config.NumberColumn("Son Fiyat", format="%.2f"),
+            "Günlük Değişim (%)": st.column_config.NumberColumn(
+                "Günlük Değişim (%)", format="%.2f%%"
+            ),
+            "RSI": st.column_config.NumberColumn("RSI", format="%.1f"),
+        },
+    )
 
 
 def render_karsilastirma_tab() -> None:

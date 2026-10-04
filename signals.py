@@ -70,6 +70,17 @@ def describe_price_vs_ma(price: float, sma50: float, sma200: float) -> str:
     return "Fiyat, " + " ve ".join(parts) + "."
 
 
+def trend_label(sma50: float, sma200: float) -> str:
+    """BIST 30 Tarama tablosu için kısa trend etiketi (50/200 günlük ortalama ilişkisi)."""
+    if pd.isna(sma50) or pd.isna(sma200):
+        return "Yetersiz veri"
+    if sma50 > sma200:
+        return "Yükseliş eğilimi"
+    if sma50 < sma200:
+        return "Düşüş eğilimi"
+    return "Yatay"
+
+
 def describe_golden_death_cross(
     sma50: pd.Series, sma200: pd.Series, lookback: int = 10
 ) -> str:

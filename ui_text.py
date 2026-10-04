@@ -21,6 +21,13 @@ ERROR_INCOMPLETE_DATA = (
     "{ticker} için veri eksik görünüyor. Lütfen daha sonra tekrar deneyin."
 )
 
+ERROR_NETWORK_BATCH = (
+    "BIST 30 verileri alınırken bir ağ hatası oluştu. Lütfen internet "
+    "bağlantınızı kontrol edip tekrar deneyin."
+)
+
+ERROR_NO_DATA_BATCH = "BIST 30 hisseleri için veri alınamadı."
+
 TAB_HISSE_DETAY = "Hisse Detay"
 TAB_TARAMA = "BIST 30 Tarama"
 TAB_KARSILASTIRMA = "Karşılaştırma"
