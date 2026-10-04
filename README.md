@@ -39,7 +39,7 @@ investment advice.
 ## Kurulum
 
 ```powershell
-git clone https://github.com/<kullanici-adiniz>/bist30-teknik-analiz-paneli.git
+git clone https://github.com/mehmet-yuksell/bist30-teknik-analiz-paneli.git
 cd bist30-teknik-analiz-paneli
 python -m venv venv
 .\venv\Scripts\Activate.ps1
