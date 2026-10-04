@@ -1,12 +1,16 @@
 """Yahoo Finance üzerinden fiyat verisi çekme işlevleri."""
 
+import csv
 from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 import yfinance as yf
 
 from config import YAHOO_SUFFIX
+
+BIST_ALL_CSV_PATH = Path(__file__).parent / "data" / "bist_all.csv"
 from ui_text import (
     ERROR_INCOMPLETE_DATA,
     ERROR_NETWORK,
@@ -18,6 +22,24 @@ from ui_text import (
 
 class DataFetchError(Exception):
     """Kullanıcıya gösterilecek hazır Türkçe mesajı taşır."""
+
+
+@st.cache_data(show_spinner=False)
+def load_all_bist_symbols() -> dict[str, str]:
+    """data/bist_all.csv dosyasından (KAP kaynaklı) tüm BIST sembollerini yükler.
+
+    Sembol -> şirket adı eşlemesi döner. BIST 30 Tarama sekmesi bunu KULLANMAZ;
+    sadece Hisse Detay ve Karşılaştırma'daki arama/seçim için kullanılır.
+    """
+    symbols: dict[str, str] = {}
+    with open(BIST_ALL_CSV_PATH, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            symbol = row["symbol"].strip()
+            name = row["company_name"].strip()
+            if symbol and name:
+                symbols[symbol] = name
+    return symbols
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

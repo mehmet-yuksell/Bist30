@@ -7,7 +7,12 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 from config import BIST30_TICKERS
-from data import DataFetchError, get_multiple_price_histories, get_price_history
+from data import (
+    DataFetchError,
+    get_multiple_price_histories,
+    get_price_history,
+    load_all_bist_symbols,
+)
 from indicators import bollinger_bands, ema, macd, rsi, sma
 from signals import (
     describe_golden_death_cross,
@@ -190,14 +195,28 @@ def render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df):
 
 
 def render_hisse_detay_tab() -> None:
+    all_stocks = load_all_bist_symbols()
+    all_symbols = sorted(all_stocks.keys())
+    default_ticker = "THYAO" if "THYAO" in all_stocks else all_symbols[0]
+
     col_ticker, col_dates = st.columns([1, 2])
 
     with col_ticker:
-        ticker = st.selectbox(
-            "Hisse",
-            options=list(BIST30_TICKERS.keys()),
-            format_func=lambda t: f"{t} — {BIST30_TICKERS[t]}",
+        ticker_raw = st.selectbox(
+            "Hisse (sembol veya şirket adıyla arayın)",
+            options=all_symbols,
+            index=all_symbols.index(default_ticker),
+            format_func=lambda t: f"{t} — {all_stocks[t]}" if t in all_stocks else f"{t} (listede yok)",
+            accept_new_options=True,
+            placeholder="Örn. THYAO veya Türk Hava Yolları",
         )
+        st.caption("Listede bulamadığınız bir hisse varsa sembolünü yazıp Enter'a basabilirsiniz.")
+
+    if not ticker_raw:
+        st.info("Lütfen bir hisse seçin veya sembol girin.")
+        return
+
+    ticker = ticker_raw.strip().upper()
 
     with col_dates:
         today = date.today()
@@ -462,17 +481,23 @@ def build_correlation_heatmap_figure(corr_df: pd.DataFrame):
 
 
 def render_karsilastirma_tab() -> None:
-    default_selection = [t for t in ("AKBNK", "GARAN", "THYAO") if t in BIST30_TICKERS]
+    all_stocks = load_all_bist_symbols()
+    all_symbols = sorted(all_stocks.keys())
+    default_selection = [t for t in ("AKBNK", "GARAN", "THYAO") if t in all_stocks]
 
     col_tickers, col_dates = st.columns([2, 1])
     with col_tickers:
-        selected = st.multiselect(
-            "Hisseler (2-5 adet)",
-            options=list(BIST30_TICKERS.keys()),
+        selected_raw = st.multiselect(
+            "Hisseler (2-5 adet, sembol veya şirket adıyla arayın)",
+            options=all_symbols,
             default=default_selection,
-            format_func=lambda t: f"{t} — {BIST30_TICKERS[t]}",
+            format_func=lambda t: f"{t} — {all_stocks[t]}" if t in all_stocks else f"{t} (listede yok)",
             max_selections=5,
+            accept_new_options=True,
+            placeholder="Örn. THYAO veya Türk Hava Yolları",
         )
+        st.caption("Listede bulamadığınız bir hisse varsa sembolünü yazıp Enter'a basabilirsiniz.")
+        selected = list(dict.fromkeys(t.strip().upper() for t in selected_raw if t.strip()))
     with col_dates:
         today = date.today()
         default_start = today - timedelta(days=365)
