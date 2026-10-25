@@ -1,0 +1,4 @@
+# Yalnızca geliştirme / görsel test için (uygulamanın çalışması için gerekmez).
+# Kurulum:  pip install -r requirements-dev.txt  &&  playwright install chromium
+-r requirements.txt
+playwright==1.63.0

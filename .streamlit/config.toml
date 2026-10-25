@@ -1,13 +1,30 @@
 [theme]
 base = "dark"
-primaryColor = "#2E86DE"
-backgroundColor = "#0E1117"
+# Renkler ui/theme.py ile aynı tutulmalıdır (yerleşik widget'lar bu değerleri kullanır)
+primaryColor = "#2F6FEB"
+backgroundColor = "#0B0E14"
 secondaryBackgroundColor = "#161A25"
-textColor = "#FAFAFA"
-font = "sans serif"
+textColor = "#E8EAF0"
+borderColor = "#343B4D"
+showWidgetBorder = true
+baseRadius = "10px"
+buttonRadius = "10px"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+baseFontSize = 15
+linkColor = "#6EA8FE"
+linkUnderline = false
+greenColor = "#16C784"
+redColor = "#EA3943"
+blueColor = "#2F6FEB"
+yellowColor = "#F0B429"
+dataframeHeaderBackgroundColor = "#1E2330"
+dataframeBorderColor = "#262C3A"
 
 [server]
 headless = true
 
 [browser]
 gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
