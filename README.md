@@ -1,5 +1,7 @@
 # BIST 30 Teknik Analiz Paneli
 
+**[▶ Canlı demo](https://bist30-opsputfhf9b9i6kkjnyefc.streamlit.app/)** · [![tests](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml/badge.svg)](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml)
+
 Borsa İstanbul'daki BIST 30 endeksi hisseleri için teknik analiz göstergelerini
 görselleştiren, Streamlit ile yazılmış Türkçe bir web uygulaması.
 
@@ -167,7 +169,7 @@ masaüstüne genişletildi:
 
 ## Teknoloji
 
-Python 3.11+, Streamlit, yfinance, pandas, numpy, plotly, pytest. Teknik
+Python 3.12+, Streamlit, yfinance, pandas, numpy, plotly, pytest. Teknik
 göstergeler hazır bir kütüphane (ör. pandas-ta) kullanılmadan, pandas/numpy
 ile sıfırdan yazılmıştır.
 
