@@ -68,7 +68,9 @@ def get_price_history(ticker: str, start_date: date, end_date: date) -> pd.DataF
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
-    df = df.dropna(how="all")
+    # Yahoo bazen son günü kapanışsız döndürüyor (Close NaN, diğer kolonlar dolu);
+    # kapanışı olmayan satır grafikte, göstergelerde ve backtest'te kullanılamaz.
+    df = df.dropna(subset=["Close"])
     if df.empty:
         raise DataFetchError(ERROR_INCOMPLETE_DATA.format(ticker=ticker))
 
@@ -104,7 +106,7 @@ def get_adjusted_price_history(ticker: str, start_date: date, end_date: date) ->
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
-    df = df.dropna(how="all")
+    df = df.dropna(subset=["Close"])
     if df.empty:
         raise DataFetchError(ERROR_INCOMPLETE_DATA.format(ticker=ticker))
 
@@ -162,7 +164,7 @@ def get_multiple_price_histories(
     result: dict[str, pd.DataFrame] = {}
     for ticker, yahoo_ticker in zip(tickers, yahoo_tickers):
         try:
-            df = raw[yahoo_ticker].dropna(how="all")
+            df = raw[yahoo_ticker].dropna(subset=["Close"])
         except KeyError:
             continue
         if not df.empty:
