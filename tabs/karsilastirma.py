@@ -61,14 +61,13 @@ def render(device: str, ctx: dict) -> None:
             default=default_selection,
             format_func=symbol_formatter(all_stocks),
             max_selections=MAX_SELECTIONS,
-            accept_new_options=True,
             placeholder=SYMBOL_PLACEHOLDER,
             key="kr_tickers",
             width="stretch",
         )
         date_range = date_range_popover("karsilastirma_tarih", default_days=365)
     selected = list(dict.fromkeys(ticker.strip().upper() for ticker in selected_raw if ticker.strip()))
-    st.caption(f"{KR_LIMIT_HINT.format(count=len(selected))} {SYMBOL_HELP}")
+    st.caption(f"{KR_LIMIT_HINT.format(count=len(selected))} {SYMBOL_HELP.format(count=len(all_symbols))}")
 
     if len(selected) < 2:
         callout("empty", KR_NEED_TWO_TITLE, KR_NEED_TWO)

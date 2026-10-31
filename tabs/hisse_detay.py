@@ -370,16 +370,15 @@ def render(device: str, ctx: dict) -> None:
             options=all_symbols,
             index=all_symbols.index(default_ticker),
             format_func=symbol_formatter(all_stocks),
-            accept_new_options=True,
             placeholder=SYMBOL_PLACEHOLDER,
             key="hd_ticker",
             width="stretch",
         )
         date_range = date_range_popover("hd_dates", default_days=3 * 365)
-    st.caption(SYMBOL_HELP)
+    st.caption(SYMBOL_HELP.format(count=len(all_symbols)))
 
     if not ticker_raw or not ticker_raw.strip():
-        callout("empty", HD_EMPTY_TITLE, HD_EMPTY_BODY)
+        callout("empty", HD_EMPTY_TITLE, HD_EMPTY_BODY.format(count=len(all_symbols)))
         return
     ticker = ticker_raw.strip().upper()
 

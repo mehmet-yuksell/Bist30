@@ -131,7 +131,7 @@ DATE_RANGE_INCOMPLETE = "Lütfen bir başlangıç ve bitiş tarihi seçin."
 DATE_RANGE_INVALID = "Başlangıç tarihi, bitiş tarihinden önce olmalıdır."
 
 SYMBOL_PLACEHOLDER = "Örn. THYAO veya Türk Hava Yolları"
-SYMBOL_HELP = "Listede bulamadığınız bir hisse varsa sembolünü yazıp Enter'a basabilirsiniz."
+SYMBOL_HELP = "Listede Yahoo Finance'te güncel verisi bulunan {count} Borsa İstanbul hissesi yer alır."
 SYMBOL_NOT_IN_LIST = "(listede yok)"
 
 # ---------------------------------------------------------------------------
@@ -142,7 +142,7 @@ HD_TICKER_LABEL = "Hisse (sembol veya şirket adıyla arayın)"
 HD_EMPTY_TITLE = "Bir hisse seçin"
 HD_EMPTY_BODY = (
     "Yukarıdaki kutuya sembol (örn. THYAO) veya şirket adı yazarak Borsa "
-    "İstanbul'daki ~790 hisse arasında arama yapabilirsiniz."
+    "İstanbul'daki {count} hisse arasında arama yapabilirsiniz."
 )
 HD_VIEW_LABEL = "Grafik dönemi"
 HD_VIEW_WINDOWS = {"1A": 30, "3A": 91, "6A": 182, "1Y": 365, "Tümü": None}

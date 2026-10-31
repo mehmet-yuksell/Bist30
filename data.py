@@ -33,6 +33,8 @@ def load_all_bist_symbols() -> dict[str, str]:
 
     Sembol -> şirket adı eşlemesi döner. BIST 30 Tarama sekmesi bunu KULLANMAZ;
     sadece Hisse Detay ve Karşılaştırma'daki arama/seçim için kullanılır.
+    Yahoo'da güncel verisi olmayanlar (yahoo_data != "1") listeye alınmaz; işaretler
+    tools/update_yahoo_coverage.py ile güncellenir.
     """
     symbols: dict[str, str] = {}
     with open(BIST_ALL_CSV_PATH, encoding="utf-8") as f:
@@ -40,7 +42,7 @@ def load_all_bist_symbols() -> dict[str, str]:
         for row in reader:
             symbol = row["symbol"].strip()
             name = row["company_name"].strip()
-            if symbol and name:
+            if symbol and name and row["yahoo_data"] == "1":
                 symbols[symbol] = name
     return symbols
 

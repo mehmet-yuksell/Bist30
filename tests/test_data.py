@@ -1,5 +1,6 @@
 """data.py içindeki ağ gerektirmeyen (yerel dosya) işlevler için testler."""
 
+import csv
 import sys
 from datetime import date
 from pathlib import Path
@@ -56,6 +57,18 @@ def test_load_all_bist_symbols_no_empty_values():
     assert len(symbols) > 500
     assert all(symbol.strip() for symbol in symbols)
     assert all(name.strip() for name in symbols.values())
+
+
+def test_load_all_bist_symbols_lists_only_symbols_with_yahoo_data():
+    symbols = load_all_bist_symbols()
+
+    # KAP'ta kayıtlı ama borsada işlem görmeyen (Yahoo'da verisi olmayan) kuruluşlar
+    assert "ACP" not in symbols
+    assert "ISKUR" not in symbols  # son verisi Ağustos 2026, işlem görmüyor
+
+    with open(data.BIST_ALL_CSV_PATH, encoding="utf-8") as f:
+        flagged = sum(1 for row in csv.DictReader(f) if row["yahoo_data"] == "1")
+    assert len(symbols) == flagged
 
 
 def test_price_history_drops_rows_without_close(monkeypatch):

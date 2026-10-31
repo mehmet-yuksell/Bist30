@@ -19,8 +19,8 @@ A Turkish-language technical analysis dashboard for Turkey's BIST stocks,
 built with Streamlit. It fetches daily OHLCV data from Yahoo Finance and
 computes SMA, EMA, RSI (Wilder's method), MACD and Bollinger Bands from
 scratch with pandas/numpy (no third-party TA library). Three tabs: a
-single-stock detail view — searchable across all ~790 Borsa İstanbul-listed
-companies, not just the top 30 — with candlestick charts, a plain-language
+single-stock detail view — searchable across the ~630 Borsa İstanbul stocks
+that have current Yahoo Finance data, not just the top 30 — with candlestick charts, a plain-language
 technical summary, a TL/USD currency toggle, and a **"Sinyal Karnesi"**
 section that backtests three simple long-only signals (RSI oversold/
 overbought, MACD crossover, 50/200 SMA golden/death cross) with strict
@@ -33,7 +33,7 @@ Educational project — not investment advice.
 ## Özellikler
 
 ### 📈 Hisse Detay
-- Borsa İstanbul'da işlem gören **~790 hissenin tamamında** sembol veya şirket adıyla arama (sadece BIST 30 değil); listede bulamadığınız bir sembolü elle de girebilirsiniz
+- Borsa İstanbul'da Yahoo Finance'te güncel verisi bulunan **~630 hissenin tamamında** sembol veya şirket adıyla arama (sadece BIST 30 değil); listede yalnızca sonuç gösterebilen hisseler yer alır
 - Üstte özet kartı: son fiyat, günlük değişim rozeti (▲/▼), 52 hafta en yüksek/en düşük, hacim, RSI
 - Mum grafiği + hacim; SMA(50)/SMA(200)/EMA(20)/Bollinger Bantları "chip" düğmeleriyle aç-kapa
 - Grafik dönemi seçimi (1A / 3A / 6A / 1Y / Tümü) — telefonda varsayılan son 3 ay
@@ -62,7 +62,7 @@ Hisse Detay sekmesinin içinde, üç basit teknik sinyalin **geçmiş performans
 - Trend durumuna ve hisse/şirket adına göre filtreleme
 
 ### ⚖️ Karşılaştırma
-- Borsa İstanbul'daki tüm hisseler arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
+- Aynı ~630 hisselik liste arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
 - Dönem getirisi sıralaması kartı
 - Başlangıcı 100 kabul eden normalize edilmiş getiri grafiği (farklı fiyat seviyelerindeki hisseleri adil karşılaştırmak için)
 - Seçilen hisselerin günlük getirileri arasındaki korelasyon ısı haritası
@@ -128,7 +128,9 @@ indicators.py       SMA, EMA, RSI (Wilder), MACD, Bollinger Bantları — sıfı
 signals.py          Gösterge değerlerinden tarafsız Türkçe gözlem metinleri
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
-data/bist_all.csv   KAP kaynaklı, Borsa İstanbul'daki tüm şirketlerin listesi
+data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)
+tools/
+  update_yahoo_coverage.py  bist_all.csv'deki yahoo_data işaretlerini yeniden hesaplar
 tests/              pytest testleri
 docs/               Ekran görüntüleri
 ```
@@ -184,9 +186,14 @@ ile sıfırdan yazılmıştır.
   geçmiş fiyat hareketlerine dayanır ve geleceği garanti etmez.
 - **Tek veri kaynağına bağımlıdır.** Yahoo Finance'in erişilemediği
   durumlarda veri gelmeyebilir (uygulama bu durumda çökmez, anlaşılır bir
-  hata mesajı gösterir).
+  hata mesajı gösterir). Yahoo bazen son günü kapanış fiyatı olmadan
+  döndürür; bu satırlar atılır ve en son gerçek kapanış gösterilir.
+- **Arama listesi elle güncellenir.** KAP'taki ~790 şirketten Yahoo'da
+  güncel verisi olan ~630'u listelenir. Yeni halka arzlar ya da işlemden
+  kaldırılan hisseler için `python tools/update_yahoo_coverage.py`
+  yeniden çalıştırılmalıdır.
 - **BIST 30 Tarama her zaman sadece 30 hisseyi gösterir.** Hisse Detay ve
-  Karşılaştırma'daki geniş arama (tüm Borsa İstanbul) bilinçli olarak bu
+  Karşılaştırma'daki geniş arama (~630 hisse) bilinçli olarak bu
   sekmeye uygulanmadı; yüzlerce hisseyi tek seferde çekmek Yahoo
   Finance'in hız sınırlarına takılabilir.
 - **Sinyal Karnesi gerçek bir yatırım stratejisi değildir, basitleştirilmiş
