@@ -1,8 +1,9 @@
 """data.py çıktısı ile tarayici_motor arasındaki köprü (arayüzden bağımsız).
 
-- motor_girdisi: Yahoo'nun ham OHLCV tablosunu motorun beklediği biçime getirir ve temettü
+- motor_girdisi: Yahoo'nun ham OHLCV tablosunu motorun beklediği biçime getirir, temettü
   düzeltmesi uygular (Adj Close / Close oranı; yfinance'in auto_adjust=True ile yaptığının
-  aynısı). Son günün oranı 1 olduğu için güncel fiyat, stop ve hedef işlem gören fiyatla aynıdır.
+  aynısı) ve Yahoo'nun kaçırdığı ya da yanlış güne yazdığı bölünme/bedelsizleri onarır
+  (bolunme_onar). Son günün fiyatı değişmez; güncel fiyat, stop ve hedef işlem gören fiyattır.
 - analiz: motoru kısa vade ayarıyla çalıştırır; motorun tarama fonksiyonu gibi 120 günden
   kısa verilerde sonuç üretmez.
 - son_al / al_gecmisi: AL sinyallerini panelde gösterilecek satırlara çevirir.
@@ -17,9 +18,40 @@ AYAR = motor.KISA_VADE
 MIN_BARS = 120  # tarayici_motor.tara ile aynı alt sınır
 OHLC = ["Open", "High", "Low", "Close"]
 
+# Borsa İstanbul'da günlük fiyat limiti ±%10'dur; açılış bu bandın dışındaysa o gün bir
+# kurumsal işlem (bölünme, bedelsiz/bedelli sermaye artırımı) vardır. Yukarı yönde eşik
+# yüksek tutulur: 15.02.2023'te deprem sonrası 5 günlük kapanışın ardından açılışta +%22'ye
+# varan gerçek boşluklar oluştu; bunlar onarılmamalıdır.
+SPLIT_DOWN_CLOSE = -0.125  # kapanıştan kapanışa en az bu kadar düşüş
+SPLIT_DOWN_OPEN = -0.105   # ve açılış boşluğu en az bu kadar aşağı
+SPLIT_UP_OPEN = 0.25       # yukarı yönde yalnızca bundan büyük açılış boşlukları
+
+
+def bolunme_onar(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
+    """Fiyat limitinin ötesindeki açılış boşluklarını kurumsal işlem sayıp geçmişi düzeltir.
+
+    Oran açılış boşluğudur (Open_t / Close_t-1): yeni taban fiyat o günün açılışına yansır;
+    tahminin hatası en fazla o geceki gerçek piyasa hareketi kadardır. Olay gününden önceki
+    tüm fiyatlar oranla çarpılır, hacim bölünür (TL cinsinden işlem hacmi korunur).
+    Döner: (onarılmış tablo, [{tarih, oran}]).
+    """
+    out = df.copy()
+    events = []
+    prev_close = out["Close"].shift(1)
+    close_change = out["Close"] / prev_close - 1
+    open_gap = out["Open"] / prev_close - 1
+    is_event = ((close_change <= SPLIT_DOWN_CLOSE) & (open_gap <= SPLIT_DOWN_OPEN)) | (open_gap >= SPLIT_UP_OPEN)
+    for date in out.index[is_event.fillna(False)]:
+        ratio = float(1 + open_gap[date])
+        before = out.index < date
+        out.loc[before, OHLC] = out.loc[before, OHLC] * ratio
+        out.loc[before, "Volume"] = out.loc[before, "Volume"] / ratio
+        events.append({"tarih": date, "oran": ratio})
+    return out, events
+
 
 def motor_girdisi(df: pd.DataFrame) -> pd.DataFrame:
-    """Open/High/Low/Close/Volume sütunlu, tarih indeksli, temettü düzeltmeli günlük tablo."""
+    """Open/High/Low/Close/Volume sütunlu, tarih indeksli, temettü ve bölünme düzeltmeli günlük tablo."""
     out = df[OHLC + ["Volume"]].astype(float).copy()
     out.columns.name = None
     if "Adj Close" in df.columns:
@@ -32,7 +64,8 @@ def motor_girdisi(df: pd.DataFrame) -> pd.DataFrame:
     out.index = index
     out = out[~out.index.duplicated(keep="last")].sort_index()
     out["Volume"] = out["Volume"].fillna(0.0)
-    return out.dropna(subset=OHLC)
+    out = out.dropna(subset=OHLC)
+    return bolunme_onar(out)[0]
 
 
 def analiz(df: pd.DataFrame) -> pd.DataFrame | None:

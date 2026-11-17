@@ -117,3 +117,43 @@ def test_al_gecmisi_forward_return():
     assert list(history.index) == [sonuc.index[18], sonuc.index[2]]
     assert history["forward_return"].iloc[1] == pytest.approx((105 / 102 - 1) * 100)
     assert np.isnan(history["forward_return"].iloc[0])
+
+
+def _ohlc_with_jump(ratio: float, n: int = 40, at: int = 20, intraday: float = 0.02) -> pd.DataFrame:
+    """Sabit 100 TL; `at`. günde açılış önceki kapanışın `ratio` katı, kapanış açılışın +%2'si."""
+    close = np.full(n, 100.0)
+    close[at:] = 100.0 * ratio * (1 + intraday)
+    df = _yahoo_frame(close).drop(columns="Adj Close")
+    df.iloc[at, df.columns.get_loc("Open")] = 100.0 * ratio
+    return df
+
+
+def test_split_is_repaired_with_open_gap_ratio():
+    df = _ohlc_with_jump(0.5)  # 2:1 bölünme / %100 bedelsiz
+    onarilmis, olaylar = motor_veri.bolunme_onar(df[motor_veri.OHLC + ["Volume"]].astype(float))
+
+    assert [round(o["oran"], 3) for o in olaylar] == [0.5]
+    assert onarilmis["Close"].iloc[19] == pytest.approx(50.0)
+    assert onarilmis["Volume"].iloc[19] == pytest.approx(2_000_000.0)  # TL hacmi korunur
+    assert onarilmis["Close"].iloc[20] == pytest.approx(51.0)  # olay günü ve sonrası değişmez
+    # olay günündeki gerçek hareket (+%2) korunur, sahte -%49 kaybolur
+    assert onarilmis["Close"].pct_change().iloc[20] == pytest.approx(0.02)
+
+
+def test_motor_girdisi_applies_split_repair():
+    girdi = motor_veri.motor_girdisi(_ohlc_with_jump(1 / 3))
+    assert girdi["Close"].pct_change().min() > -0.01
+
+
+def test_real_market_gap_within_limits_is_not_repaired():
+    # 15.02.2023 benzeri: işlem arasından sonra +%20 açılış gerçektir
+    _, olaylar = motor_veri.bolunme_onar(_ohlc_with_jump(1.20)[motor_veri.OHLC + ["Volume"]])
+    assert olaylar == []
+    # limit içinde sert düşüş (-%10 açılış) de gerçektir
+    _, olaylar = motor_veri.bolunme_onar(_ohlc_with_jump(0.90, intraday=-0.04)[motor_veri.OHLC + ["Volume"]])
+    assert olaylar == []
+
+
+def test_large_upward_gap_is_repaired():
+    _, olaylar = motor_veri.bolunme_onar(_ohlc_with_jump(1.7)[motor_veri.OHLC + ["Volume"]])
+    assert [round(o["oran"], 2) for o in olaylar] == [1.7]
