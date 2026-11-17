@@ -1,36 +1,61 @@
 # BIST 100 Teknik Analiz Paneli
 
-**[▶ Canlı demo](https://bist30-opsputfhf9b9i6kkjnyefc.streamlit.app/)** · [![tests](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml/badge.svg)](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml)
+**[▶ Canlı demo](https://bist30-opsputfhf9b9i6kkjnyefc.streamlit.app/)** · [![tests](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml/badge.svg)](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml) · [![sinyal-gunlugu](https://github.com/mehmet-yuksell/Bist30/actions/workflows/sinyal_gunlugu.yml/badge.svg)](https://github.com/mehmet-yuksell/Bist30/actions/workflows/sinyal_gunlugu.yml)
 
-Borsa İstanbul'daki BIST 100 endeksi hisseleri için teknik analiz göstergelerini
-görselleştiren, Streamlit ile yazılmış Türkçe bir web uygulaması.
+Borsa İstanbul'daki BIST 100 hisseleri için Streamlit ile yazılmış Türkçe bir **araştırma ve risk takip
+aracı**. Teknik göstergeleri, iki sinyal sisteminin (orijinal Bluetsman ve Bluetsman Alım/Sat v2) güncel
+durumunu, satış uyarılarını ve kişisel takip listesini gösterir; her sinyalin geçmişte ve ileri testte ne
+kadar işe yaradığını da yanında ölçer.
+
+> **Bu bir al-sat sinyal servisi değildir.** Aşağıdaki test sonuçlarına göre alım sinyalleri 2025'ten bu
+> yana maliyet sonrası pozitif getiri vermedi. Panelin değeri, sinyalleri ve riskleri ölçülmüş halleriyle,
+> olumsuz sonuçlar dahil açıkça göstermesidir. Eğitim amaçlıdır, yatırım tavsiyesi değildir.
+
+## Test sonuçları (TEST dönemi: 01.01.2025 – 17.11.2026)
+
+Kurallar ve eşikler yalnızca 2021-2024 (GELİŞTİRME) verisiyle belirlendi; 2025 sonrası (TEST) hiçbir
+ayarda kullanılmadı. Her sinyal ertesi gün açılıştan girilir; stop = kapanış − 1,5 ATR, hedef = 2R,
+en fazla 20 iş günü, gidiş-dönüş %0,2 maliyet. "Rastgele gün", aynı hisselerde her günden aynı kurallarla
+giriştir: bir sistem ancak bundan iyiyse bilgi taşır.
+
+| Kısa vade alım sinyali | Sinyal | Hedef % | Stop % | Beklenen getiri (R) | Standart hata |
+|---|---:|---:|---:|---:|---:|
+| Orijinal Bluetsman (8 koşul) | 105 | 31,4 | 61,9 | **−0,089** | ±0,137 |
+| Yeni sistem (Bluetsman Alım/Sat v2) | 350 | 30,9 | 63,4 | **−0,138** | ±0,072 |
+| Rastgele gün (aynı kurallar) | 45.120 | 31,1 | 56,3 | **+0,018** | ±0,007 |
+
+- **İki sistem de TEST'te rastgele girişten kötü;** aralarındaki fark (0,05 R) standart hatanın içinde,
+  yani anlamlı değil. 2021-2024'te yeni sistem rastgeleden iyi görünüyordu (0,374 R'ye karşı 0,247 R);
+  bu avantaj 2025 sonrasında kayboldu.
+- **Satış uyarılarından KAR AL ve ÇIK** kısa vadede iki dönemde de rastgele bir günden daha iyi uyardı;
+  SAT 2025 sonrasında uyarmadı.
+- **FIRSAT** (sert düşüş sonrası toparlanma) TEST'te −0,147 R; hedefe ulaşma oranı yüksek (%69) ama
+  hedef yakın, stop uzak. Düşen bıçak elemesi kötü sonuçlanan düşüşleri ayırt etmedi.
+- **Portföy testi** (100.000 TL, işlem başına %1 risk): sadece trend sistemi TEST'te −%17,2; aynı dönemde
+  XU100 al-tut +%18,1, eşit ağırlıklı BIST 100 al-tut +%21,1.
+
+Ayrıntılar: [docs/sistem_raporu.md](docs/sistem_raporu.md) (tüm aşamalar, filtreler, kabul/red gerekçeleri)
+ve [docs/bluetsman_karsilastirma.md](docs/bluetsman_karsilastirma.md) (iki sistemin karşılaştırması).
 
 ![Masaüstü görünüm](docs/masaustu.png)
 
 <p align="center">
-  <img src="docs/mobil-hisse-detay.png" width="260" alt="Telefonda Hisse Detay">
   <img src="docs/mobil-tarama.png" width="260" alt="Telefonda BIST 100 Tarama">
+  <img src="docs/mobil-hisse-detay.png" width="260" alt="Telefonda Hisse Detay">
   <img src="docs/mobil-karsilastirma.png" width="260" alt="Telefonda Karşılaştırma">
 </p>
 
 ## English summary
 
-A Turkish-language technical analysis dashboard for Turkey's BIST stocks,
-built with Streamlit. It fetches daily OHLCV data from Yahoo Finance and
-computes SMA, EMA, RSI (Wilder's method), MACD and Bollinger Bands from
-scratch with pandas/numpy (no third-party TA library). Three tabs: a
-single-stock detail view — searchable across the ~630 Borsa İstanbul stocks
-that have current Yahoo Finance data, not just the top 100 — with candlestick charts, a plain-language
-technical summary, a TL/USD currency toggle, and a **"Sinyal Karnesi"**
-section that backtests three simple long-only signals (RSI oversold/
-overbought, MACD crossover, 50/200 SMA golden/death cross) with strict
-no-look-ahead execution (signal at close, trade at next day's open) and
-configurable transaction costs; a screener for the BIST 100 constituents
-ranked by the **Bluetsman buy system** (a TradingView Pine Script indicator
-ported 1:1 to pandas: EMA 13/34 crossover + volume + RSI + momentum + MACD +
-Supertrend + ADX, scored 0-100); and a multi-stock
-comparison view with normalized returns and a correlation heatmap.
-Educational project — not investment advice.
+A Turkish-language **research and risk-tracking dashboard** for BIST 100 stocks, built with Streamlit
+on delayed Yahoo Finance data. It shows technical indicators, two signal systems (the original
+8-condition Bluetsman indicator and the Bluetsman Buy/Sell v2 engine), sell warnings, a dip-buying
+setup, a personal watchlist and a daily signal log with forward testing. Every signal is evaluated with
+the same no-look-ahead rules (enter at the next day's open, ATR stop, 2R target, 20-day time stop,
+0.2% round-trip cost), with 2021-2024 used for development and 2025 onwards held out as a test set.
+**On the test set neither buy-signal system beat random entries under the same rules**, and the
+difference between them is not statistically significant; the dashboard reports this alongside the
+signals. Educational project — not investment advice.
 
 ## Özellikler
 
@@ -53,8 +78,6 @@ Educational project — not investment advice.
 - Her gösterge yanında "Bu ne anlama gelir?" açılır açıklama kutusu
 
 ### 🎯 Sinyal Karnesi (backtest)
-![Sinyal Karnesi ekran görüntüsü](docs/sinyal-karnesi.png)
-
 Hisse Detay sekmesinin içinde, üç basit teknik sinyalin **geçmiş performansını** gösteren bölüm:
 - RSI(14) aşırı satım/alım, MACD kesişimi, SMA 50/200 altın/ölüm kesişimi — ve "Al-Tut" karşılaştırması
 - **İleriye bakış (look-ahead) hatası yok**: sinyal bir günün kapanışında oluşur, işlem ancak ertesi günün açılışında gerçekleşir
@@ -109,6 +132,8 @@ ayarını kullanır:
 - Resmî tatiller ayrıca tutulmaz: son verinin tarihi bugün değilse piyasa kapalı gösterilir.
 
 ### 📊 Sistem Performansı ve sinyal raporu
+![Sistem Performansı sekmesi](docs/sistem-performansi.png)
+
 - `python tools/sistem_raporu.py` 10 yıllık veriyle sinyalleri değerlendirir ve
   [docs/sistem_raporu.md](docs/sistem_raporu.md) dosyasını üretir: ertesi gün açılıştan giriş,
   stop/hedef/zaman aşımı, %0,2 maliyet; GELİŞTİRME (2021-2024) ve TEST (2025-) ayrı; rastgele gün
@@ -120,6 +145,15 @@ ayarını kullanır:
 - **Sinyal kalitesi notu (A/B/C):** alım sinyalleri skor aralığına göre 2021-2024 sonuçlarıyla notlanır,
   2025 sonrasında doğrulanır; doğrulanan not ve grubun tarihsel isabeti sinyal kartlarında gösterilir
   (`kalite.py`, `data/sinyal_kalitesi.json`)
+
+### 🧪 Sinyal Günlüğü ve İleri Test
+- GitHub Actions ([sinyal_gunlugu.yml](.github/workflows/sinyal_gunlugu.yml)) her iş günü 18:45'te
+  (Türkiye) o günün tüm sinyallerini [data/sinyal_gunlugu.csv](data/sinyal_gunlugu.csv)'ye yazıp commit eder:
+  vade, tür (alım, SAT, KAR AL, ÇIK, FIRSAT), hisse, skor, not, giriş referansı (sinyal günü kapanışı), stop,
+  hedef. Orta vade sinyalleri yalnızca hafta tamamlandığında kaydedilir.
+- **İleri Test** sekmesi günlükteki sinyallerin sonucunu Aşama 1 kurallarıyla gösterir (ertesi gün açılış
+  girişi). Geçmiş testlerden farklı olarak kayıt anında gelecek bilinmez; 30'dan az sinyal sonuçlandıysa
+  "Henüz yeterli veri yok" yazar. Günlük 17.11.2026'da başladı.
 
 ### ⚖️ Karşılaştırma
 - Aynı ~630 hisselik liste arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
@@ -146,10 +180,10 @@ Uygulama `http://localhost:8501` adresinde açılır.
 pytest tests/ -v
 ```
 
-`indicators.py` içindeki SMA, EMA, RSI ve MACD hesaplamaları, elle (kapalı
-formülle) doğrulanmış küçük örnek verilerle test edilir. `ui/format.py`'deki
-Türkçe sayı/tarih biçimlendirmesi ve arayüz metinlerinde "AL/SAT" ifadesinin
-geçmediği de test edilir.
+Göstergeler, sinyal motoru, değerlendirme (elle kurulmuş fiyat serileriyle: ertesi gün açılış girişi,
+aynı gün hedef+stop = stop vb.), filtreler (geleceğe bakmama testi dahil), FIRSAT, portföy, not sistemi,
+takip listesi ve sinyal günlüğü birim testleriyle doğrulanır. Arayüz metinlerinde tavsiye dili ("AL/SAT")
+yasaktır; yalnızca motorun satış sinyali adları (SAT, KAR AL, ÇIK) özel ad olarak muaftır.
 
 Görsel (tarayıcı) testleri için geliştirme bağımlılıkları ayrıdır:
 
@@ -172,7 +206,8 @@ playwright install chromium
 app.py              Giriş noktası: sayfa ayarları, başlık, sekmeler, alt bilgi
 tabs/
   hisse_detay.py    Hisse Detay sekmesi + alım sistemi kırılımı + Teknik Özet + Sinyal Karnesi
-  tarama.py         BIST 100 Tarama: Bugünün Alım Sinyalleri + alım skorlu liste
+  tarama.py         BIST 100 Tarama: alım sinyalleri, satış uyarıları, fırsat, düşen bıçak, iki vadeli liste
+  ileri_test.py     İleri Test sekmesi (Sinyal Günlüğü'nün sonuçları)
   karsilastirma.py  Karşılaştırma sekmesi
   performans.py     Sistem Performansı sekmesi (portföy simülasyonu sonuçları)
   takip.py          Takip Listem sekmesi
@@ -200,6 +235,7 @@ portfoy.py          Portföy simülasyonu (pozisyon büyüklüğü, risk, rejim)
 kalite.py           Sinyal kalitesi notu (geçmiş performansa göre A/B/C, TEST doğrulaması)
 panel_veri.py       Panel listeleri: iki vadenin sinyalleri, satış uyarıları, fırsat ve bıçak durumu
 takip.py            Takip listesi modeli, satırlar ve karar özeti kuralları
+gunluk.py           Sinyal Günlüğü kaydı ve ileri test değerlendirmesi
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)
@@ -207,8 +243,11 @@ tools/
   update_yahoo_coverage.py  bist_all.csv'deki yahoo_data işaretlerini yeniden hesaplar
   check_bist100.py          config'teki BIST 100 listesini Borsa İstanbul'un güncel dosyasıyla karşılaştırır
   sistem_raporu.py          sinyal ve portföy değerlendirmesi -> docs/sistem_raporu.md, data/sistem_performansi.*
+  bluetsman_karsilastirma.py  orijinal Bluetsman ile yeni sistemin karşılaştırması -> docs/bluetsman_karsilastirma.md
+  sinyal_gunlugu.py         günün sinyallerini data/sinyal_gunlugu.csv'ye ekler (GitHub Actions çalıştırır)
 tests/              pytest testleri
-docs/               Ekran görüntüleri
+docs/               Raporlar ve ekran görüntüleri
+.github/workflows/  ci.yml (testler), sinyal_gunlugu.yml (her iş günü 18:45 sinyal kaydı)
 ```
 
 ## Mobil uyumluluk
@@ -253,6 +292,15 @@ ile sıfırdan yazılmıştır.
 
 ## Sınırlamalar
 
+- **Hayatta kalma yanlılığı:** testler bugünkü BIST 100 listesiyle yapıldı. Geçmişte endeksten çıkan,
+  iflas eden ya da işlemden kaldırılan hisseler yok; sonuçlar olduğundan iyimser olabilir.
+- **TEST dönemi kısa (~23 ay) ve sinyal sayıları sınırlı.** Raporlardaki standart hatalar küçük farkların
+  gürültüden ayırt edilemediğini gösterir; birden fazla filtre/kural denendiği için bazı "iyi" sonuçlar şans
+  eseri olabilir.
+- **Modellenmeyenler:** vergi, kayma (slippage), tavan/taban kilidinde işlem yapılamaması, açığa satış
+  kısıtları. Gün içi fiyat sırası bilinmediği için aynı gün hem stop hem hedef görülürse stop sayılır.
+- **İleri test henüz yeni:** Sinyal Günlüğü 17.11.2026'da başladı; anlamlı bir sonuç için aylar gerekir.
+  GitHub zamanlanmış işleri bazen gecikir; resmî tatilde ya da Yahoo verisi gelmediğinde kayıt yapılmaz.
 - **BIST 100 listesi elle güncellenir.** Endeks bileşenleri üç ayda bir
   değişebilir; liste `config.py` içinde belirtilen tarihte doğrulanmıştır.
   `python tools/check_bist100.py` farkları gösterir.
