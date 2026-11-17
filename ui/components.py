@@ -308,36 +308,96 @@ def stock_list(rows: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 def score_color(score: float) -> str:
-    """Göstergedeki renk eşikleri: 70+ yeşil, 40+ turuncu, altı kırmızı."""
-    if score >= 70:
+    """60+ yeşil (AL için gereken en düşük skor), 40-59 turuncu, altı kırmızı."""
+    if score >= 60:
         return t.UP
     if score >= 40:
         return t.WARN
     return t.DOWN_TEXT
 
 
-def signal_card(title: str, subtitle_text: str, score: float, score_label: str,
-                checks: list[tuple[str, bool, str]]) -> None:
-    """Sinyal durumu + 0-100 skor + koşul ızgarası. checks: (koşul adı, sağlandı mı, değer metni)."""
-    color = score_color(score)
-    items = "".join(
-        f'<div class="ui-check {"ok" if ok else "no"}" role="listitem">'
-        f'<span class="ui-check-mark" aria-label="{"sağlandı" if ok else "sağlanmadı"}">{"✓" if ok else "✗"}</span>'
-        f'<span class="ui-check-label">{escape(label)}</span>'
-        f'<span class="ui-check-value">{escape(value)}</span></div>'
-        for label, ok, value in checks
+def _bar(ratio: float, color: str, css: str = "ui-score-bar") -> str:
+    return (
+        f'<div class="{css}" aria-hidden="true">'
+        f'<span style="width:{min(max(ratio, 0.0), 1.0) * 100:.0f}%;background:{color}"></span></div>'
     )
+
+
+def score_card(title: str, subtitle_lines: list[str], score: float, score_label: str,
+               items: list[tuple[str, float, float]]) -> None:
+    """Sinyal durumu + 0-100 alım skoru + kalem kalem puan kırılımı. items: (kalem, puan, maksimum)."""
+    color = score_color(score)
+    cells = "".join(
+        '<div class="ui-check" role="listitem">'
+        f'<span class="ui-check-label">{escape(label)}</span>'
+        f'<span class="ui-check-points num">{points:.0f}<small>/{maximum:.0f}</small></span>'
+        f'{_bar(points / maximum if maximum else 0, t.ACCENT_TEXT if points else t.BORDER_STRONG, "ui-check-bar")}</div>'
+        for label, points, maximum in items
+    )
+    subs = "".join(f'<div class="ui-signal-sub">{escape(line)}</div>' for line in subtitle_lines if line)
     render(
-        '<section class="ui-card" aria-label="Bluetsman alım sistemi">'
+        '<section class="ui-card" aria-label="Alım sistemi">'
         '<div class="ui-signal-head">'
-        f'<div><div class="ui-signal-title">{escape(title)}</div>'
-        f'<div class="ui-signal-sub">{escape(subtitle_text)}</div></div>'
+        f'<div><div class="ui-signal-title">{escape(title)}</div>{subs}</div>'
         f'<div class="ui-score"><div class="ui-score-value num" style="color:{color}">{score:.0f}</div>'
         f'<div class="ui-score-label">{escape(score_label)}</div></div></div>'
-        f'<div class="ui-score-bar" aria-hidden="true"><span style="width:{min(max(score, 0), 100):.0f}%;background:{color}"></span></div>'
-        f'<div class="ui-checks" role="list">{items}</div>'
+        f"{_bar(score / 100, color)}"
+        f'<div class="ui-checks" role="list">{cells}</div>'
         "</section>"
     )
+
+
+def status_bar(items: list[tuple[str, str, str | None]]) -> None:
+    """Güncellik satırı. items: (etiket, değer, ton: 'up' | 'down' | None — değerin önüne nokta)."""
+    parts = "".join(
+        f'<span class="ui-status-item">{escape(label)}: '
+        + (f'<span class="ui-status-dot {escape(tone)}"></span>' if tone else "")
+        + f"<strong>{escape(value)}</strong></span>"
+        for label, value, tone in items
+    )
+    render(f'<div class="ui-status" role="status">{parts}</div>')
+
+
+def signal_cards(cards: list[dict]) -> None:
+    """Bugünün AL sinyali kartları.
+
+    Her kart: ticker, name, score, price, change (%), badge (str | None), rows [(etiket, değer)].
+    """
+    html_cards = []
+    for card in cards:
+        color = score_color(card["score"])
+        badge_html = badge(card["badge"], "warn") if card.get("badge") else ""
+        kv = "".join(
+            f'<div class="ui-kv"><span>{escape(label)}</span><b>{escape(value)}</b></div>'
+            for label, value in card["rows"]
+        )
+        html_cards.append(
+            '<article class="ui-card ui-signal-card" role="listitem">'
+            '<div class="ui-signal-card-top">'
+            f'<div class="ui-signal-card-id"><div class="ui-list-ticker">{escape(card["ticker"])} {badge_html}</div>'
+            f'<div class="ui-list-name">{escape(card["name"])}</div></div>'
+            f'<div class="ui-signal-card-score num" style="color:{color}">{card["score"]:.0f}</div></div>'
+            f'<div class="ui-signal-card-price"><span class="num">{escape(card["price"])}</span>'
+            f"{change_badge(card['change'])}</div>"
+            f"{_bar(card['score'] / 100, color)}{kv}</article>"
+        )
+    render(f'<div class="ui-signal-cards" role="list">{"".join(html_cards)}</div>')
+
+
+def recent_signal_list(rows: list[dict]) -> None:
+    """Son günlerin AL sinyalleri. Her satır: ticker, name, when, price_label, change (%)."""
+    html_rows = "".join(
+        '<div class="ui-list-row" role="listitem">'
+        f'<div class="ui-list-main"><div class="ui-list-ticker">{escape(row["ticker"])} '
+        f'{badge(row["when"], "accent")}</div>'
+        f'<div class="ui-list-name">{escape(row["name"])}</div>'
+        f'<div class="ui-list-meta">{escape(row["price_label"])}</div></div>'
+        f'<div class="ui-list-side">{change_badge(row["change"])}'
+        f'<div class="ui-list-meta">{escape(row["since_label"])}</div></div>'
+        "</div>"
+        for row in rows
+    )
+    render(f'<div class="ui-list ui-list-auto" role="list">{html_rows}</div>')
 
 
 # ---------------------------------------------------------------------------

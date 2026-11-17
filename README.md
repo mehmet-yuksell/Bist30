@@ -58,23 +58,39 @@ Hisse Detay sekmesinin içinde, üç basit teknik sinyalin **geçmiş performans
 - İşlem sayısı 10'un altındaysa "örnek sayısı yetersiz" uyarısı
 
 ### 🔍 BIST 100 Tarama (açılış sekmesi)
+- **Bugünün Alım Sinyalleri:** son işlem gününde alım sinyali veren hisseler, alım skoruna göre
+  kartlar halinde (kod, şirket, skor, fiyat, günlük değişim, stop, hedef, RSI, hacim katı).
+  Bugün sinyal yoksa son 5 işlem günündeki sinyaller (kaç gün önce, sinyal fiyatı, sinyalden bu
+  yana değişim) listelenir.
+- Üstte son veri tarihi, son güncelleme saati ve piyasa durumu (Açık / Kapalı) ile "Şimdi yenile"
+  düğmesi (en fazla 2 dakikada bir). Seans sürerken bugünkü sinyaller "Ön sinyal" olarak ayrı
+  gösterilir; sinyaller kapanışla kesinleşir.
 - Liste Borsa İstanbul'un resmî endeks bileşen dosyasından alınır (`config.py`, kaynak ve tarihle)
-- Özet şeridi: yükselen / düşen hisse sayısı, bugün ve son 10 işlem gününde Bluetsman alım sinyali veren hisse sayısı
-- Her hisse için Bluetsman skoru (0-100), sağlanan koşul sayısı (x/8) ve son sinyalin kaç gün önce oluştuğu
-- "Son 10 günde sinyal verenler" filtresi ve hisse/şirket adıyla arama
+- Her hisse için 0-100 alım skoru, son sinyalin kaç gün önce oluştuğu, RSI ve hacim katı;
+  "Son 10 günde sinyal verenler" filtresi ve hisse/şirket adıyla arama
 - Görünüm cihaza göre seçilir: masaüstünde sıralanabilir tablo, telefonda kompakt liste
 
-### 🔷 Bluetsman Alım Sistemi
-TradingView'deki "Bluetsman — Piyasanın Efendisi (Alım)" Pine Script göstergesinin
-`bluetsman.py`'deki birebir karşılığı (`ta.rma`, `ta.tr`, `ta.atr`, kesişim ve `na`
-davranışı dahil):
-- Sekiz koşul: EMA 13'ün EMA 34'ü yukarı kesmesi, hacim > 20 günlük ortalama × 1,05,
-  RSI(14) > 50, momentum > 0, MACD histogramı > 0, fiyat > EMA 34, Supertrend (10, 3)
-  yukarı, ADX(14) > 20. Sekizi aynı gün sağlanınca sinyal oluşur.
-- Skor 0-100 (göstergedeki puan tablosu; 70+ yeşil, 40+ turuncu)
-- Hisse Detay'da: grafikte EMA 13/34 ve mavi sinyal üçgenleri, bugünkü skor ve koşul
-  ızgarası (✓/✗ ve değerleri), geçmiş sinyaller ve her birinin 10 işlem günü sonraki getirisi
-- Hesap her zaman TL fiyatla yapılır (göstergedeki momentum ve MACD eşikleri TL cinsindendir)
+### 🔷 Bluetsman Alım Sistemi (`tarayici_motor.py`)
+Bluetsman Alım/Sat v2 mantığının Python hesaplama motoru; panel kısa vade (günlük grafik)
+ayarını kullanır:
+- **Alım skoru (0-100):** kesişim tazeliği 15, fiyat > EMA 34 10, Supertrend 10, RSI 15,
+  hacim 15, MACD 15, momentum 10, ADX 10
+- **Sinyal:** EMA 13/34 kesişiminden sonra en çok 3 işlem günü içinde, fiyat EMA 34 üzerinde,
+  haftalık kapanış 20 haftalık EMA üzerinde ve skor ≥ 60; her kesişime tek sinyal.
+  Stop = kapanış − 1,5 ATR, hedef = kapanış + 3 ATR.
+- Hisse Detay'da: grafikte EMA 13/34 ve geçmiş sinyaller için mavi üçgenler, skorun kalem kalem
+  kırılımı (puan / maksimum), geçmiş sinyaller (stop, hedef, 10 işlem günü sonraki getiri)
+- Hesap temettü düzeltmeli fiyatla yapılır (`motor_veri.py`: Yahoo'nun Adj Close / Close oranı)
+
+### ⏱️ Güncel veri (`market.py`, `feed.py`)
+- Önbellek piyasa saatine göre (Europe/Istanbul): seansta 15 dakikada bir, seans dışında bir
+  sonraki açılışa kadar aynı veri. Yahoo verisi ~15 dakika gecikmeli olduğu için kapanış verisi
+  18:40'a kadar yenilenir.
+- Sayfa açık kalırsa Tarama ve Hisse Detay 15 dakikada bir kendini yeniler; sekme, arama ve
+  filtre seçimleri korunur.
+- Yahoo hata verir ya da veri boş/eksik gelirse son başarılı veri gösterilir ve "Veri
+  güncellenemedi, X dakika önceki veri gösteriliyor" uyarısı çıkar.
+- Resmî tatiller ayrıca tutulmaz: son verinin tarihi bugün değilse piyasa kapalı gösterilir.
 
 ### ⚖️ Karşılaştırma
 - Aynı ~630 hisselik liste arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
@@ -126,8 +142,8 @@ playwright install chromium
 ```
 app.py              Giriş noktası: sayfa ayarları, başlık, sekmeler, alt bilgi
 tabs/
-  hisse_detay.py    Hisse Detay sekmesi + Bluetsman + Teknik Özet + Sinyal Karnesi
-  tarama.py         BIST 100 Tarama sekmesi (Bluetsman skoru ve sinyalleri)
+  hisse_detay.py    Hisse Detay sekmesi + alım sistemi kırılımı + Teknik Özet + Sinyal Karnesi
+  tarama.py         BIST 100 Tarama: Bugünün Alım Sinyalleri + alım skorlu liste
   karsilastirma.py  Karşılaştırma sekmesi
 ui/
   theme.py          Tasarım token'ları (renk, boşluk, yarıçap) — CSS ve Plotly ortak kaynağı
@@ -141,7 +157,11 @@ config.py           BIST 100 hisse listesi (Borsa İstanbul kaynağı ve tarihiy
 data.py             Yahoo Finance'den veri çekme, önbellekleme, hata yönetimi
 indicators.py       SMA, EMA, RSI (Wilder), MACD, Bollinger Bantları — sıfırdan
 signals.py          Gösterge değerlerinden tarafsız Türkçe gözlem metinleri
-bluetsman.py        Bluetsman alım sistemi (Pine Script'in birebir karşılığı)
+tarayici_motor.py   Bluetsman Alım/Sat v2 hesaplama motoru (skor, sinyal, stop/hedef, isabet testi)
+motor_veri.py       data.py çıktısı -> motor girdisi (temettü düzeltmesi) ve sinyal özetleri
+market.py           BIST seans saati ve önbellek zaman dilimi (Europe/Istanbul)
+feed.py             Piyasa saatine göre güncel veri, son başarılı veriye dönüş, yenileme sınırı
+bluetsman.py        Eski 8 koşullu Bluetsman (Pine) aktarımı; panelde artık kullanılmıyor
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)
@@ -200,9 +220,9 @@ ile sıfırdan yazılmıştır.
 - **Bugünkü mum kapanmadan kesin değildir.** Seans içinde son gün henüz
   tamamlanmadığı için hacim düşük görünebilir; bugünkü skor ve sinyal kapanışa
   kadar değişebilir (TradingView'de de aynıdır).
-- **Bluetsman skoru hisseler arasında tam karşılaştırılabilir değildir.**
-  Momentum (0-2 TL) ve MACD histogramı (0-1) puanları göstergede TL cinsinden
-  sabit eşiklerle ölçülür; pahalı hisseler bu puanları daha kolay doldurur.
+- **Yahoo'nun bölünme/bedelsiz kayıtları bazen hatalıdır.** Temettü düzeltmesi
+  bunları düzeltmez; bazı hisselerde (ör. FENER, TUKAS, EUREN, CVKMD) geçmişte
+  gerçekte olmayan tek günlük sert düşüşler görünür ve o dönemin göstergelerini bozar.
 - **Veriler gecikmelidir.** Yahoo Finance üzerinden alınan fiyatlar gerçek
   zamanlı değildir.
 - **Eğitim amaçlıdır, yatırım tavsiyesi değildir.** Göstergeler yalnızca

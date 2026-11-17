@@ -328,15 +328,35 @@ footer {{
 /* Bluetsman koşul ızgarası: telefonda 2, geniş ekranda 4 sütun */
 .ui-checks {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-3); }}
 .ui-check {{
-    display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px var(--space-2); align-items: start;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--space-2); align-items: baseline;
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
     padding: 10px var(--space-3); min-width: 0;
 }}
-.ui-check-mark {{ font-weight: 700; font-size: var(--fs-base); line-height: 1.3; }}
-.ui-check.ok .ui-check-mark {{ color: var(--up); }}
-.ui-check.no .ui-check-mark {{ color: var(--text-3); }}
 .ui-check-label {{ font-size: var(--fs-sm); font-weight: 600; color: var(--text-1); }}
-.ui-check-value {{ grid-column: 2; font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }}
+.ui-check-points {{ font-size: var(--fs-base); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }}
+.ui-check-points small {{ font-size: var(--fs-xs); font-weight: 500; color: var(--text-3); }}
+.ui-check-bar {{ grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--neutral-bg); overflow: hidden; }}
+.ui-check-bar span {{ display: block; height: 100%; border-radius: 2px; }}
+
+/* Güncellik satırı */
+.ui-status {{ display: flex; flex-wrap: wrap; gap: 4px var(--space-4); font-size: var(--fs-sm); color: var(--text-3); }}
+.ui-status strong {{ color: var(--text-1); font-weight: 600; font-variant-numeric: tabular-nums; }}
+.ui-status-item {{ display: inline-flex; align-items: center; gap: 6px; }}
+.ui-status-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
+.ui-status-dot.up {{ background: var(--up); }}
+.ui-status-dot.down {{ background: var(--text-3); }}
+
+/* Bugünün AL sinyali kartları */
+.ui-signal-cards {{ display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }}
+.ui-signal-card {{ display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); }}
+.ui-signal-card-top {{ display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); }}
+.ui-signal-card-id {{ min-width: 0; }}
+.ui-signal-card-id .ui-badge {{ font-size: 11px; padding: 1px 8px; vertical-align: middle; }}
+.ui-signal-card-score {{ font-size: 28px; font-weight: 700; line-height: 1; }}
+.ui-signal-card-price {{ display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--fs-md); font-weight: 650; color: var(--text-1); }}
+.ui-signal-card .ui-score-bar {{ margin-top: 0; }}
+.ui-list-auto {{ max-height: none !important; }}
+.ui-list-ticker .ui-badge, .ui-list-signal .ui-badge {{ font-size: 11px; padding: 1px 8px; vertical-align: middle; }}
 .ui-signal-head {{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }}
 .ui-signal-title {{ font-size: var(--fs-md); font-weight: 650; color: var(--text-1); }}
 .ui-signal-sub {{ font-size: var(--fs-sm); color: var(--text-2); margin-top: 2px; }}
@@ -346,7 +366,6 @@ footer {{
 .ui-score-bar {{ height: 6px; border-radius: 3px; background: var(--neutral-bg); overflow: hidden; margin-top: var(--space-3); }}
 .ui-score-bar span {{ display: block; height: 100%; border-radius: 3px; }}
 .ui-list-signal {{ margin-top: 4px; }}
-.ui-list-signal .ui-badge {{ font-size: 11px; padding: 1px 8px; }}
 
 /* Kompakt hisse listesi */
 .ui-list {{
@@ -420,12 +439,14 @@ footer {{
     .ui-cards {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
     .ui-strip {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
     .ui-checks {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
+    .ui-signal-cards {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
 }}
 
 /* ---------- Masaüstü ---------- */
 @media (min-width: 1024px) {{
     .ui-metrics {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
     .ui-cards {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
+    .ui-signal-cards {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
     [data-testid="stButtonGroup"] button {{ min-height: 34px; }}
     .stButton button, [data-testid="stPopoverButton"] {{ min-height: 40px; }}
     [data-testid="stSelectbox"] [role="group"],

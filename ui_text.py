@@ -100,14 +100,15 @@ EXPLANATIONS = {
         "sabittir; bu hisseye özel olarak optimize edilmemiştir."
     ),
     "bluetsman": (
-        "Bluetsman alım sistemi sekiz koşula bakar: EMA 13'ün EMA 34'ü yukarı kesmesi, "
-        "hacmin 20 günlük ortalamanın %5 üzerinde olması, RSI > 50, günlük momentum > 0, "
-        "MACD histogramı > 0, fiyatın EMA 34 üzerinde olması, Supertrend'in yukarı yönde "
-        "olması ve ADX > 20. Sekizi de aynı gün sağlanırsa sinyal oluşur (grafikte mavi üçgen). "
-        "Skor, koşulların ne kadar güçlü sağlandığını 0-100 arasında puanlar; 70 ve üzeri "
-        "yeşil, 40-69 turuncu, altı kırmızı gösterilir. EMA kesişimi tek günlük bir olay olduğu "
-        "için sinyal seyrek oluşur. Hesaplar TradingView'deki göstergeyle aynıdır, gün içinde "
-        "değil günlük kapanışla yapılır."
+        "Bluetsman Alım/Sat v2 (kısa vade, günlük grafik) alım skorunu 0-100 arasında sekiz "
+        "kalemden toplar: EMA 13'ün EMA 34'ü yukarı kesmesinin tazeliği (15), fiyatın EMA 34 "
+        "üzerinde olması (10), Supertrend'in yukarı yönde olması (10), RSI'ın 50-75 arasında "
+        "olması (15), yükselen günde hacmin 20 günlük ortalamaya oranı (15), MACD histogramı "
+        "(15), günlük hareketin ATR'ye oranı (10) ve +DI > -DI iken ADX (10). Alım sinyali için "
+        "kesişim en çok 3 işlem günü önce olmalı, fiyat EMA 34 üzerinde, haftalık kapanış 20 "
+        "haftalık EMA üzerinde ve skor en az 60 olmalı; her kesişime tek sinyal verilir. Stop = "
+        "kapanış - 1,5 ATR, hedef = kapanış + 3 ATR (risk/ödül 2). Hesap temettü düzeltmeli "
+        "günlük kapanışla yapılır."
     ),
     "usd_view": (
         "Türk Lirası yüksek enflasyon ve kur hareketleri nedeniyle zaman "
@@ -210,48 +211,64 @@ BADGE_SMA_BELOW = "50, 200'ün altında"
 BADGE_INSUFFICIENT = "Yetersiz veri"
 
 # ---------------------------------------------------------------------------
-# Bluetsman alım sistemi
+# Alım sistemi (tarayici_motor: Bluetsman Alım/Sat v2)
 # ---------------------------------------------------------------------------
 
 BL_TITLE = "Bluetsman Alım Sistemi"
 BL_CAPTION = (
-    "TradingView'deki Bluetsman (Piyasanın Efendisi) göstergesinin aynısı; son kapanışa göre. "
-    "Bir koşul taramasıdır, yatırım tavsiyesi değildir."
+    "Bluetsman Alım/Sat v2, kısa vade (günlük grafik); temettü düzeltmeli kapanışla. "
+    "Bir sinyal taramasıdır, yatırım tavsiyesi değildir."
 )
-BL_STATUS_TODAY = "Bugün alım sinyali var"
-BL_STATUS_RECENT = "Son sinyal {days} işlem günü önce ({date}, skor {score})"
-BL_STATUS_NONE = "Son {days} işlem gününde sinyal yok"
-BL_STATUS_SUB = "{met}/8 koşul bugün sağlanıyor · sinyal için 8/8 gerekir"
-BL_SCORE_LABEL = "Bugünkü skor (0-100)"
+BL_STATUS_TODAY = "Bugün alım sinyali (skor {score})"
+BL_STATUS_TODAY_PROVISIONAL = "Bugün ön alım sinyali (skor {score}) · kapanışta kesinleşir"
+BL_STATUS_RECENT = "Son alım sinyali {days} işlem günü önce ({date}, skor {score})"
+BL_STATUS_NONE = "Son {days} işlem gününde alım sinyali yok"
+BL_STATUS_NO_DATA = "Alım sistemi için en az 120 işlem günü veri gerekir; tarih aralığını genişletin."
+BL_GATES = (
+    "Alım sinyali için: taze kesişim {cross} · fiyat > EMA 34 {price} · haftalık trend {weekly} · skor ≥ {min_score} {score}"
+)
+BL_SIGNAL_LEVELS = "Son sinyalin stop seviyesi {stop}, hedefi {target}."
+BL_SCORE_LABEL = "Alım skoru (0-100)"
 BL_TODAY = "Bugün"
 BL_DAYS_AGO = "{days} gün önce"
-BL_COND_LABELS = {
-    "ema_cross": "EMA 13/34 kesişimi",
-    "volume": "Hacim artışı",
-    "rsi": "RSI > 50",
-    "momentum": "Momentum > 0",
-    "macd": "MACD hist. > 0",
-    "price_above": "Fiyat > EMA 34",
+BL_ITEM_LABELS = {
+    "kesisim": "Kesişim tazeliği",
+    "fiyat_ema": "Fiyat > EMA 34",
     "supertrend": "Supertrend yukarı",
-    "adx": "ADX > 20",
+    "rsi": "RSI 50-75",
+    "hacim": "Hacim (yükselen gün)",
+    "macd": "MACD",
+    "momentum": "Momentum / ATR",
+    "adx": "ADX (+DI > -DI)",
 }
-BL_CROSS_TODAY = "Bugün yukarı kesti"
-BL_CROSS_ABOVE = "Kesişim yok (13, 34'ün üzerinde)"
-BL_CROSS_BELOW = "Kesişim yok (13, 34'ün altında)"
-BL_VOLUME_VALUE = "Ortalamanın {ratio} katı"
-BL_TREND_UP = "Yukarı"
-BL_TREND_DOWN = "Aşağı"
-BL_HISTORY_TITLE = "Geçmiş sinyaller (seçili tarih aralığı)"
+BL_HISTORY_TITLE = "Geçmiş alım sinyalleri (seçili tarih aralığı)"
 BL_HISTORY_CAPTION = (
-    "10 gün sonra: sinyal günü kapanışından 10 işlem günü sonraki kapanışa değişim. "
-    "Geçmiş sonuçlar gelecek için garanti değildir."
+    "10 gün sonra: sinyal günü kapanışından 10 işlem günü sonraki kapanışa değişim "
+    "(temettü düzeltmeli). Geçmiş sonuçlar gelecek için garanti değildir."
 )
-BL_HISTORY_EMPTY = "Seçili tarih aralığında hiç sinyal oluşmadı."
+BL_HISTORY_EMPTY = "Seçili tarih aralığında hiç alım sinyali oluşmadı."
 BL_COL_DATE = "Tarih"
 BL_COL_SCORE = "Skor"
-BL_COL_CLOSE = "Kapanış (TL)"
+BL_COL_CLOSE = "Kapanış"
+BL_COL_STOP = "Stop"
+BL_COL_TARGET = "Hedef"
 BL_COL_FORWARD = "10 gün sonra"
 BL_HISTORY_SUMMARY = "{count} sinyal · 10 gün sonra yükselen: {up}/{done} · ortalama {avg}"
+
+# Güncellik ve piyasa durumu
+LIVE_LAST_DATA = "Son veri"
+LIVE_UPDATED = "Son güncelleme"
+LIVE_MARKET = "Piyasa"
+LIVE_OPEN = "Açık"
+LIVE_CLOSED = "Kapalı"
+LIVE_REFRESH = "Şimdi yenile"
+LIVE_REFRESH_WAIT = "Veri en fazla 2 dakikada bir yenilenebilir. {seconds} sn sonra tekrar deneyin."
+LIVE_STALE = "Veri güncellenemedi, {minutes} dakika önceki veri gösteriliyor."
+LIVE_SESSION_NOTE = "Bugünkü mum henüz kapanmadı. Sinyaller 18:10 kapanışında kesinleşir."
+LIVE_SETTLING_NOTE = (
+    "Seans kapandı; Yahoo verisi ~15 dakika gecikmeli olduğu için bugünkü sinyaller "
+    "18:40'tan sonraki güncellemeyle kesinleşir."
+)
 
 # ---------------------------------------------------------------------------
 # Sinyal Karnesi
@@ -287,14 +304,30 @@ BT_EQUITY_AXIS = "Başlangıç = 100"
 # BIST 100 Tarama
 # ---------------------------------------------------------------------------
 
+TS_TITLE = "Bugünün Alım Sinyalleri"
+TS_CAPTION = "Son işlem gününde alım sinyali veren BIST 100 hisseleri, alım skoruna göre sıralı."
+TS_PROVISIONAL_TITLE = "Ön sinyaller (seans sürüyor)"
+TS_PROVISIONAL_BADGE = "Ön sinyal"
+TS_NONE = "Bugün alım sinyali yok"
+TS_RECENT_TITLE = "Son 5 işlem günündeki sinyaller"
+TS_RECENT_NONE = "Son 5 işlem gününde de alım sinyali oluşmadı."
+TS_SIGNAL_PRICE = "Sinyal fiyatı"
+TS_SINCE = "sinyalden bu yana"
+TS_STOP = "Stop"
+TS_TARGET = "Hedef"
+TS_RSI = "RSI"
+TS_VOLUME = "Hacim"
+TS_VOLUME_VALUE = "{ratio}×"
+
 TR_RISING = "Yükselen"
 TR_FALLING = "Düşen"
 TR_SIGNAL_TODAY = "Bugün alım sinyali"
+TR_SIGNAL_TODAY_SUB = "ön sinyal"
 TR_SIGNAL_RECENT = "Son {days} günde sinyal"
 TR_AS_OF = "{date} itibarıyla · günlük değişim önceki kapanışa göre"
 TR_LIST_TITLE = "BIST 100 Hisseleri"
-TR_LIST_CAPTION = "Skor ve sinyal Bluetsman alım sistemine göredir; ayrıntısı Hisse Detay sekmesinde."
-TR_LIST_META = "Skor {score} · {met} koşul"
+TR_LIST_CAPTION = "Alım skoru ve sinyal Bluetsman Alım/Sat v2'ye göredir; kalem kalem kırılımı Hisse Detay sekmesinde."
+TR_LIST_META = "Skor {score} · RSI {rsi}"
 TR_FILTER_LABEL = "Göster"
 TR_FILTER_ALL = "Tümü"
 TR_FILTER_SIGNAL = "Son {days} günde sinyal verenler"
@@ -302,7 +335,7 @@ TR_SEARCH_LABEL = "Hisse kodu veya şirket adı ara"
 TR_SEARCH_PLACEHOLDER = "Örn. GARAN veya Koç"
 TR_SORT_LABEL = "Sırala"
 TR_SORT_OPTIONS = {
-    "score_desc": "Skor (yüksekten)",
+    "score_desc": "Alım skoru (yüksekten)",
     "change_desc": "Değişim (yüksekten)",
     "change_asc": "Değişim (düşükten)",
     "ticker": "Hisse (A-Z)",
@@ -315,10 +348,10 @@ TR_COL_TICKER = "Hisse"
 TR_COL_COMPANY = "Şirket"
 TR_COL_PRICE = "Son Fiyat"
 TR_COL_CHANGE = "Günlük Değişim"
-TR_COL_SCORE = "Skor"
-TR_COL_MET = "Koşul"
+TR_COL_SCORE = "Alım Skoru"
 TR_COL_SIGNAL = "Son Sinyal"
 TR_COL_RSI = "RSI"
+TR_COL_VOLUME = "Hacim x"
 TR_STRIP_FLAT = "{count} değişmeyen"
 TR_STRIP_OF = "{count} hisse içinde"
 

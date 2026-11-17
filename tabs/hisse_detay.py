@@ -1,14 +1,18 @@
-"""Hisse Detay sekmesi: hero, mum grafiği, Bluetsman alım sistemi, Teknik Özet, Sinyal Karnesi."""
+"""Hisse Detay sekmesi: hero, mum grafiği, alım sistemi (skor kırılımı), Teknik Özet, Sinyal Karnesi."""
+
+from datetime import timedelta
 
 import pandas as pd
 import streamlit as st
 
-import bluetsman
+import feed
+import market
+import motor_veri
+import tarayici_motor as motor
 from backtest import run_buy_and_hold, run_macd_strategy, run_rsi_strategy, run_sma_cross_strategy
 from data import (
     DataFetchError,
     get_adjusted_price_history,
-    get_price_history,
     get_usdtry_rate,
     load_all_bist_symbols,
 )
@@ -32,7 +36,7 @@ from ui.components import (
     legend,
     metric_html,
     section_title,
-    signal_card,
+    score_card,
     skeleton_html,
     strategy_cards,
     subtitle,
@@ -64,23 +68,22 @@ from ui_text import (
     BL_COL_DATE,
     BL_COL_FORWARD,
     BL_COL_SCORE,
-    BL_COND_LABELS,
-    BL_CROSS_ABOVE,
-    BL_CROSS_BELOW,
-    BL_CROSS_TODAY,
+    BL_COL_STOP,
+    BL_COL_TARGET,
+    BL_GATES,
     BL_HISTORY_CAPTION,
     BL_HISTORY_EMPTY,
     BL_HISTORY_SUMMARY,
     BL_HISTORY_TITLE,
+    BL_ITEM_LABELS,
     BL_SCORE_LABEL,
+    BL_SIGNAL_LEVELS,
     BL_STATUS_NONE,
+    BL_STATUS_NO_DATA,
     BL_STATUS_RECENT,
-    BL_STATUS_SUB,
     BL_STATUS_TODAY,
+    BL_STATUS_TODAY_PROVISIONAL,
     BL_TITLE,
-    BL_TREND_DOWN,
-    BL_TREND_UP,
-    BL_VOLUME_VALUE,
     BT_CAPTION,
     BT_COST_HELP,
     BT_COST_LABEL,
@@ -122,6 +125,7 @@ from ui_text import (
     HD_VIEW_LABEL,
     HD_VIEW_WINDOWS,
     HERO_AS_OF,
+    LIVE_STALE,
     METRIC_52W_HIGH,
     METRIC_52W_LOW,
     METRIC_PERIOD_HIGH,
@@ -280,28 +284,8 @@ def _render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
 # Bluetsman alım sistemi
 # ---------------------------------------------------------------------------
 
-def _condition_checks(signals: pd.DataFrame) -> list[tuple[str, bool, str]]:
-    last = signals.iloc[-1]
-    if last["ema_cross"]:
-        cross = BL_CROSS_TODAY
-    else:
-        cross = BL_CROSS_ABOVE if last["ema_fast"] > last["ema_slow"] else BL_CROSS_BELOW
-    momentum = last["momentum_value"]
-    values = {
-        "ema_cross": cross,
-        "volume": BL_VOLUME_VALUE.format(ratio=fmt_num(last["volume_ratio"], 2)),
-        "rsi": fmt_num(last["rsi_value"], 1),
-        "momentum": f"{arrow(momentum)} {fmt_num(abs(momentum))} TL",
-        "macd": fmt_num(last["macd_hist"], 2),
-        "price_above": f"EMA 34: {fmt_num(last['ema_slow'])}",
-        "supertrend": BL_TREND_UP if last["supertrend"] else BL_TREND_DOWN,
-        "adx": fmt_num(last["adx_value"], 1),
-    }
-    return [(BL_COND_LABELS[c], bool(last[c]), values[c]) for c in bluetsman.CONDITIONS]
-
-
-def _render_signal_history(df_tl: pd.DataFrame, signals: pd.DataFrame) -> None:
-    history = bluetsman.signal_history(df_tl, signals)
+def _render_signal_history(sonuc: pd.DataFrame) -> None:
+    history = motor_veri.al_gecmisi(sonuc)
     with st.expander(BL_HISTORY_TITLE, icon=":material/history:"):
         if history.empty:
             callout("empty", None, BL_HISTORY_EMPTY)
@@ -313,12 +297,14 @@ def _render_signal_history(df_tl: pd.DataFrame, signals: pd.DataFrame) -> None:
         ))
         recent = history.iloc[:HISTORY_ROWS]
         forward = recent["forward_return"].to_numpy()
-        # Getiri metin olarak verilir: Streamlit boş değerde Styler'ın na_rep'ini yok sayıp
+        # Değerler metin olarak verilir: Streamlit boş değerde Styler'ın na_rep'ini yok sayıp
         # "None" yazıyor. Renk yine sayısal değerden hesaplanır.
         table = pd.DataFrame({
             BL_COL_DATE: [fmt_date(d) for d in recent.index],
             BL_COL_SCORE: recent["score"].round().astype(int).to_numpy(),
             BL_COL_CLOSE: [fmt_num(v, 2) for v in recent["close"]],
+            BL_COL_STOP: [fmt_num(v, 2) for v in recent["stop"]],
+            BL_COL_TARGET: [fmt_num(v, 2) for v in recent["target"]],
             BL_COL_FORWARD: ["—" if pd.isna(v) else f"{arrow(v)} {fmt_pct(v)}" for v in forward],
         })
         forward_colors = [
@@ -333,26 +319,48 @@ def _render_signal_history(df_tl: pd.DataFrame, signals: pd.DataFrame) -> None:
         st.caption(BL_HISTORY_CAPTION)
 
 
-def _render_bluetsman(df_tl: pd.DataFrame, signals: pd.DataFrame) -> None:
+def _mark(ok: bool) -> str:
+    return "✓" if ok else "✗"
+
+
+def _render_alim_sistemi(df_tl: pd.DataFrame, sonuc: pd.DataFrame | None) -> None:
     section_title(BL_TITLE, BL_CAPTION)
-    status = bluetsman.latest_status(signals, SIGNAL_LOOKBACK)
-    if status["signal_today"]:
-        title = BL_STATUS_TODAY
-    elif status["days_since"] is not None:
+    if sonuc is None:
+        callout("info", None, BL_STATUS_NO_DATA)
+        return
+
+    last = sonuc.iloc[-1]
+    score = float(last["Alim_skor"])
+    signal = motor_veri.son_al(sonuc, SIGNAL_LOOKBACK)
+    provisional = market.provisional(market.now(), sonuc.index[-1].date())
+    if signal and signal["once"] == 0:
+        template = BL_STATUS_TODAY_PROVISIONAL if provisional else BL_STATUS_TODAY
+        title = template.format(score=round(signal["skor"]))
+    elif signal:
         title = BL_STATUS_RECENT.format(
-            days=status["days_since"], date=fmt_date(status["signal_date"]),
-            score=round(status["signal_score"]),
+            days=signal["once"], date=fmt_date(signal["tarih"]), score=round(signal["skor"]),
         )
     else:
         title = BL_STATUS_NONE.format(days=SIGNAL_LOOKBACK)
-    signal_card(
-        title=title,
-        subtitle_text=BL_STATUS_SUB.format(met=status["met"]),
-        score=status["score"],
-        score_label=BL_SCORE_LABEL,
-        checks=_condition_checks(signals),
+
+    kalemler = motor_veri.skor_kirilimi(df_tl)
+    weekly_up = bool(motor.haftalik_trend_gunluge(motor_veri.motor_girdisi(df_tl), motor_veri.AYAR.trend_ema).iloc[-1])
+    gates = BL_GATES.format(
+        cross=_mark(kalemler["kesisim"] > 0),
+        price=_mark(kalemler["fiyat_ema"] > 0),
+        weekly=_mark(weekly_up),
+        min_score=motor_veri.AYAR.min_skor,
+        score=_mark(score >= motor_veri.AYAR.min_skor),
     )
-    _render_signal_history(df_tl, signals)
+    levels = BL_SIGNAL_LEVELS.format(stop=fmt_num(signal["stop"], 2), target=fmt_num(signal["hedef"], 2)) if signal else ""
+    score_card(
+        title=title,
+        subtitle_lines=[gates, levels],
+        score=score,
+        score_label=BL_SCORE_LABEL,
+        items=[(BL_ITEM_LABELS[k], float(kalemler[k]), m) for k, m in motor.ALIM_KALEMLERI.items()],
+    )
+    _render_signal_history(sonuc)
 
 
 def _render_explanations(currency: str) -> None:
@@ -482,7 +490,8 @@ def _render_sinyal_karnesi_body(ticker: str, start_date, end_date, device: str) 
 # Sekme
 # ---------------------------------------------------------------------------
 
-@st.fragment
+# Seans boyunca 15 dakikada bir yalnızca bu sekme yeniden çalışır (seçimler korunur).
+@st.fragment(run_every=timedelta(minutes=market.REFRESH_MINUTES))
 def render(device: str, ctx: dict) -> None:
     all_stocks = load_all_bist_symbols()
     all_symbols = sorted(all_stocks.keys())
@@ -514,19 +523,22 @@ def render(device: str, ctx: dict) -> None:
     loading = st.empty()
     loading.html(skeleton_html("detail"))
     try:
-        df = get_price_history(ticker, start_date, end_date)
+        data = feed.single(ticker, start_date, end_date)
     except DataFetchError as exc:
         loading.empty()
         error_state(str(exc), key="hd_retry")
         return
     loading.empty()
+    df = data.data
     ctx["last_dates"].append(df.index[-1])
+    if data.stale:
+        callout("warn", None, LIVE_STALE.format(minutes=data.age_minutes()))
 
     # Para birimi anahtarı grafik araç çubuğunda durur; hero ondan önce çizildiği için
     # seçili değer oturum durumundan okunur (anahtara tıklamak sayfayı yeniden çalıştırır).
-    # Bluetsman her zaman TL veriyle hesaplanır: momentum ve MACD eşikleri göstergede TL cinsindendir.
+    # Alım sistemi her zaman TL ve temettü düzeltmeli fiyatla hesaplanır (motor_veri).
     df_tl = df
-    signals = bluetsman.compute(df_tl)
+    sonuc = motor_veri.analiz(df_tl)
 
     currency = st.session_state.get(CURRENCY_KEY) or "TL"
     currency_label = "TL"
@@ -560,13 +572,13 @@ def render(device: str, ctx: dict) -> None:
         "ema20": ema(close, 20)[mask] if "EMA 20" in indicators else None,
         "bollinger": bollinger_bands(close, 20)[mask] if "Bollinger" in indicators else None,
         # Dolar görünümünde EMA'lar dolar fiyatından çizilir; sinyal günleri TL hesabından gelir.
-        "bl_fast": ema(close, bluetsman.EMA_FAST)[mask] if show_bluetsman else None,
-        "bl_slow": ema(close, bluetsman.EMA_SLOW)[mask] if show_bluetsman else None,
+        "bl_fast": ema(close, motor_veri.AYAR.hizli_ema)[mask] if show_bluetsman else None,
+        "bl_slow": ema(close, motor_veri.AYAR.yavas_ema)[mask] if show_bluetsman else None,
     }
     signal_scores = None
-    if show_bluetsman:
-        visible = signals.reindex(df.index)[mask]
-        signal_scores = visible.loc[visible["buy_signal"].eq(True), "score"]
+    if show_bluetsman and sonuc is not None:
+        visible = sonuc.reindex(df.index)[mask]
+        signal_scores = visible.loc[visible["AL"].eq(True), "Alim_skor"]
     legend_items = [
         (name, charts.OVERLAY_COLORS[key], "line")
         for key, name in (
@@ -591,7 +603,7 @@ def render(device: str, ctx: dict) -> None:
     charts.show_chart(fig, device, key="hd_chart")
     _render_explanations(currency_label)
 
-    _render_bluetsman(df_tl, signals)
+    _render_alim_sistemi(df_tl, sonuc)
 
     _render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
 
