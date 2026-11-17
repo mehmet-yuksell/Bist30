@@ -324,6 +324,8 @@ def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisseler: dict, veri_bitis: pd.
     asama3_satirlari, firsat_karar = asama3(sonuc)
     out += asama3_satirlari
     tum_ozet["firsat"] = firsat_karar
+    bas = next(i for i, x in enumerate(out) if x.startswith("## Aşama 1"))
+    out[bas:bas] = test_ozeti(sonuc, kabuller)
     asama4_satirlari, kalite_ozet = asama4(sonuc, kabuller)
     out += asama4_satirlari
     tum_ozet["kalite"] = kalite_ozet
@@ -961,6 +963,41 @@ def panel_istatistikleri(sonuc: dict, kabuller: dict, firsat_karar: dict) -> Non
                       "test_rastgele_r": _r(kv["F_RASTGELE"], "TEST").get("beklenen_r")}
     veri["bicak"] = {"ayiriyor": bool(firsat_karar.get("ayiriyor"))}
     kalite.DOSYA.write_text(json.dumps(veri, ensure_ascii=False, indent=1, default=float), encoding="utf-8")
+
+
+def test_ozeti(sonuc: dict, kabuller: dict) -> list[str]:
+    """Raporun başındaki özet: panelde kullanılan sinyallerin TEST dönemi sonuçları."""
+    def orta_al() -> pd.DataFrame:
+        t = sonuc["orta"]["AL"]
+        for f, e in kabuller.get("orta", {}).items():
+            if f != "F7":
+                t = t[t[f"{f}|{e}"]]
+        return t
+
+    satirlar = [
+        ("Kısa vade (günlük)", "AL", sonuc["kisa"]["AL"], 1, "gün"),
+        ("Kısa vade (günlük)", "SAT", sonuc["kisa"]["SAT"], -1, "gün"),
+        ("Kısa vade (günlük)", "FIRSAT", sonuc["kisa"]["F_FIRSAT"], 1, "gün"),
+        ("Orta vade (haftalık)", "AL (kabul edilen filtrelerle)", orta_al(), 1, "hafta"),
+        ("Orta vade (haftalık)", "SAT", sonuc["orta"]["SAT"], -1, "hafta"),
+    ]
+    out = ["## Özet — TEST dönemi (01.01.2025 – bugün)", "",
+           "Panelde kullanılan sinyallerin, kuralların ayarlanmasında hiç kullanılmamış dönemdeki sonucu. "
+           "SAT açığa satış gibi değerlendirilir (hedef = fiyatın düşmesi). XU100 farkı: aynı giriş-çıkış "
+           "tarihlerinde endekse göre fazla getiri (SAT'ta endeksin tersine göre). FIRSAT yalnızca günlüktür; "
+           "orta vadede tanımlı değildir.", "",
+           "| Vade | Sinyal | Sinyal sayısı | Hedef % | Stop % | Beklenen getiri (R) | Hedefe medyan süre | XU100 aynı tarihlerde % | XU100'e göre fark % |",
+           "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
+    for vade, ad, t, side, birim in satirlar:
+        s = ev.doneme_gore(t, side)["TEST"]
+        if not s.get("sinyal"):
+            out.append(f"| {vade} | {ad} | 0 | — | — | — | — | — | — |")
+            continue
+        medyan = f"{s['hedef_medyan_gun']:.0f} {birim}" if np.isfinite(s.get("hedef_medyan_gun", np.nan)) else "—"
+        out.append(f"| {vade} | {ad} | {s['sinyal']} | {_f(s['hedef_pct'])} | {_f(s['stop_pct'])} | "
+                   f"**{_f(s['beklenen_r'], 3)}** | {medyan} | {_f(s.get('endeks_ort_pct'), 2)} | "
+                   f"{_f(s.get('endeks_fazla_pct'), 2)} |")
+    return out + ["", "Ayrıntılar ve GELİŞTİRME dönemi aşağıda. Hayatta kalma yanlılığı ve diğer sınırlamalar en sonda.", ""]
 
 
 def sinirlamalar() -> list[str]:

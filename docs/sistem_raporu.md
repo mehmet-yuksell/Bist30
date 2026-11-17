@@ -17,6 +17,20 @@ Bu dosya `python tools/sistem_raporu.py` ile üretilir; elle düzenlemeyin. Veri
 - **XU100:** her işlem için endeksin aynı giriş-çıkış tarihlerindeki getirisi ve dönem boyunca al-tut getirisi.
 - **Açık** (zaman penceresi henüz dolmamış) ve **geçersiz** (giriş açılışı stop/hedefin ötesinde) işlemler metriklere girmez; sayıları tablonun altında.
 
+## Özet — TEST dönemi (01.01.2025 – bugün)
+
+Panelde kullanılan sinyallerin, kuralların ayarlanmasında hiç kullanılmamış dönemdeki sonucu. SAT açığa satış gibi değerlendirilir (hedef = fiyatın düşmesi). XU100 farkı: aynı giriş-çıkış tarihlerinde endekse göre fazla getiri (SAT'ta endeksin tersine göre). FIRSAT yalnızca günlüktür; orta vadede tanımlı değildir.
+
+| Vade | Sinyal | Sinyal sayısı | Hedef % | Stop % | Beklenen getiri (R) | Hedefe medyan süre | XU100 aynı tarihlerde % | XU100'e göre fark % |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Kısa vade (günlük) | AL | 350 | 30,9 | 63,4 | **-0,138** | 6 gün | -0,38 | -0,04 |
+| Kısa vade (günlük) | SAT | 217 | 22,1 | 63,1 | **-0,102** | 10 gün | 0,65 | 0,13 |
+| Kısa vade (günlük) | FIRSAT | 183 | 69,4 | 21,3 | **-0,147** | 1 gün | 0,17 | -0,86 |
+| Orta vade (haftalık) | AL (kabul edilen filtrelerle) | 79 | 22,8 | 53,2 | **-0,018** | 7 hafta | 0,15 | -0,69 |
+| Orta vade (haftalık) | SAT | 41 | 2,4 | 43,9 | **-0,391** | 10 hafta | 3,56 | -3,55 |
+
+Ayrıntılar ve GELİŞTİRME dönemi aşağıda. Hayatta kalma yanlılığı ve diğer sınırlamalar en sonda.
+
 ## Aşama 1 — Başlangıç ölçümü (filtresiz sistem)
 
 Bu bölüm kıyas noktasıdır: sonraki aşamalardaki filtreler bu rakamlara göre değerlendirilir.

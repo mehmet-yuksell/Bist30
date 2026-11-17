@@ -43,7 +43,7 @@ def _key() -> str:
     return f"{market.cache_slot(market.now())}|{_state()['nonce']}"
 
 
-@st.cache_data(max_entries=3, ttl=24 * 3600, show_spinner=False)
+@st.cache_data(max_entries=8, ttl=24 * 3600, show_spinner=False)  # takip listeleri farklı anahtar üretir
 def _batch(tickers: tuple[str, ...], key: str) -> tuple[dict, datetime]:
     data = get_multiple_price_histories.__wrapped__(tickers)
     if len(data) < len(tickers) * MIN_BATCH_COVERAGE:

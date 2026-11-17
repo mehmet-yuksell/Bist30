@@ -540,3 +540,62 @@ BL_CAPTION_ORTA = (
     "Bluetsman Alım/Sat v2, orta vade (haftalık grafik); temettü düzeltmeli kapanışla, orta vadenin kabul edilmiş "
     "alım filtreleriyle. Bir sinyal taramasıdır, yatırım tavsiyesi değildir."
 )
+
+# ---------------------------------------------------------------------------
+# Takip Listem (Aşama 6)
+# ---------------------------------------------------------------------------
+
+TAB_TAKIP = "Takip Listem"
+TK_TITLE = "⭐ Takip Listem"
+TK_CAPTION = (
+    "Takip ettiğin hisseler iki vade için tek tabloda. Liste yalnızca bu tarayıcıda saklanır "
+    "(başka cihaz için JSON indir/yükle). Eğitim amaçlıdır, yatırım tavsiyesi değildir."
+)
+TK_LOADING = "Liste tarayıcıdan yükleniyor…"
+TK_ADD_TITLE = "Hisse ekle"
+TK_ADD_CODE = "Hisse (listeden seç ya da kodu yaz; BIST 100 dışı da olur)"
+TK_ADD_PRICE = "Alış fiyatı (isteğe bağlı)"
+TK_ADD_QTY = "Adet (isteğe bağlı)"
+TK_ADD_NOTE = "Not (isteğe bağlı)"
+TK_ADD_BUTTON = "Ekle / güncelle"
+TK_ADD_HELP = "Alış fiyatı girilen hisse \"elimde var\" sayılır; kâr/zarar ve satış kararları buna göre hesaplanır."
+TK_BAD_CODE = "Geçersiz hisse kodu. 2-6 harf/rakam olmalı (örn. THYAO)."
+TK_NOT_FOUND = "{kod} için Yahoo Finance'te veri bulunamadı; listeye eklenmedi."
+TK_ADDED = "{kod} listeye eklendi."
+TK_EMPTY = "Takip listen boş. Yukarıdan hisse ekleyebilirsin."
+TK_SUMMARY_TITLE = "Karar özeti"
+TK_SUMMARY_CAPTION = (
+    "Kurallara dayalı hatırlatmadır, tavsiye değildir. Geçmiş testte alım sinyalleri 2025 sonrasında rastgele "
+    "girişten iyi değildi; ayrıntı Sistem Performansı sekmesinde."
+)
+TK_SUMMARY_NONE = "Şu an karar özetine giren bir durum yok."
+TK_TABLE_TITLE = "Liste"
+TK_NO_DATA = "veri yok"
+TK_HELD = "Elimde"
+TK_COL_CODE = "Hisse"
+TK_COL_PRICE = "Fiyat"
+TK_COL_CHANGE = "Değişim"
+TK_COL_PL_PCT = "K/Z %"
+TK_COL_PL_TL = "K/Z TL"
+TK_COL_SCORE = "{v} skor"
+TK_COL_GRADE = "{v} not"
+TK_COL_PRESSURE = "{v} satış baskısı"
+TK_COL_SIGNAL = "{v} son sinyal"
+TK_COL_STOP = "{v} stop"
+TK_COL_TARGET = "{v} hedef"
+TK_COL_NOTE = "Not"
+TK_VADE_SHORT = {"kisa": "Kısa", "orta": "Orta"}
+TK_SIGNAL_BUY = "Alım"
+TK_EDIT_TITLE = "Listeyi düzenle"
+TK_EDIT_DELETE = "Sil"
+TK_EDIT_SAVE = "Değişiklikleri kaydet"
+TK_EDIT_SAVED = "Liste güncellendi."
+TK_BACKUP_TITLE = "Yedekle / taşı"
+TK_DOWNLOAD = "Listeyi indir (JSON)"
+TK_UPLOAD = "Listeyi yükle (JSON)"
+TK_UPLOAD_APPLY = "Yüklenen listeyi kullan (mevcut listenin yerine geçer)"
+TK_UPLOAD_OK = "{n} hisselik liste yüklendi."
+TK_UPLOAD_BAD = "Liste yüklenemedi: {hata}"
+TK_LEVEL_NOTE = (
+    "Stop/hedef: son 10 bardaki alım sinyalinin seviyeleri; sinyal yoksa bugünkü bara göre (kapanış ∓ ATR katları)."
+)

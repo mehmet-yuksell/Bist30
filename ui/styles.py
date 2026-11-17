@@ -84,7 +84,7 @@ header[data-testid="stHeader"],
 footer {{
     display: none !important;
 }}
-.st-key-viewport_probe {{ display: none !important; }}
+.st-key-viewport_probe, .st-key-takip_deposu {{ display: none !important; }}
 [data-testid="stMainBlockContainer"], .block-container {{
     max-width: 1280px;
     padding: var(--space-5) var(--space-6) var(--space-6) !important;

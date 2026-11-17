@@ -34,6 +34,14 @@ Educational project — not investment advice.
 
 ## Özellikler
 
+### ⭐ Takip Listem
+- Hisse ekleme: listeden seçerek ya da kod yazarak (BIST 100 dışı dahil; Yahoo'da verisi yoksa uyarı)
+- İsteğe bağlı alış fiyatı, adet ve not; alış fiyatı girilen hisse "elimde var" sayılır (kâr/zarar % ve TL)
+- Her hisse için iki vadede skor, not, satış baskısı, son sinyal, stop ve hedef
+- **Karar özeti:** satışı değerlendir, kâr almayı düşün, alımı değerlendir, takipte kal, dikkat
+- Liste tarayıcının localStorage'ında saklanır (`ui/takip_deposu.py`, Streamlit'in yerleşik bileşen API'si;
+  ek paket yok); JSON indir/yükle ile yedeklenir. Fiyatlar BIST 100 taramasıyla aynı toplu indirmeden gelir
+
 ### 📈 Hisse Detay
 - Borsa İstanbul'da Yahoo Finance'te güncel verisi bulunan **~630 hissenin tamamında** sembol veya şirket adıyla arama (sadece BIST 100 değil); listede yalnızca sonuç gösterebilen hisseler yer alır
 - Üstte özet kartı: son fiyat, günlük değişim rozeti (▲/▼), 52 hafta en yüksek/en düşük, hacim, RSI
@@ -167,6 +175,7 @@ tabs/
   tarama.py         BIST 100 Tarama: Bugünün Alım Sinyalleri + alım skorlu liste
   karsilastirma.py  Karşılaştırma sekmesi
   performans.py     Sistem Performansı sekmesi (portföy simülasyonu sonuçları)
+  takip.py          Takip Listem sekmesi
 ui/
   theme.py          Tasarım token'ları (renk, boşluk, yarıçap) — CSS ve Plotly ortak kaynağı
   styles.py         CSS tasarım sistemi + mobil öncelikli medya sorguları
@@ -190,6 +199,7 @@ firsat.py           FIRSAT sistemi (sert düşüş sonrası toparlanma) ve düş
 portfoy.py          Portföy simülasyonu (pozisyon büyüklüğü, risk, rejim) ve metrikler
 kalite.py           Sinyal kalitesi notu (geçmiş performansa göre A/B/C, TEST doğrulaması)
 panel_veri.py       Panel listeleri: iki vadenin sinyalleri, satış uyarıları, fırsat ve bıçak durumu
+takip.py            Takip listesi modeli, satırlar ve karar özeti kuralları
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)

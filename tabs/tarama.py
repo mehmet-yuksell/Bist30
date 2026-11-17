@@ -521,7 +521,8 @@ def _render_results(table_df: pd.DataFrame, device: str, vade: str) -> None:
 @st.fragment(run_every=timedelta(minutes=market.REFRESH_MINUTES))
 def render(device: str, ctx: dict) -> None:
     vade = ctx.get("vade", pv.KISA)
-    tickers = tuple(BIST100_TICKERS.keys()) + (ENDEKS,)
+    # Kod listesi app.py'den: BIST 100 + XU100 + takip listesindeki BIST 100 dışı hisseler
+    tickers = ctx.get("tickers") or tuple(BIST100_TICKERS.keys()) + (ENDEKS,)
 
     loading = st.empty()
     loading.html(skeleton_html("list"))
