@@ -1,0 +1,45 @@
+name: sinyal-gunlugu
+
+# Her iş günü 18:45 (Türkiye, UTC+3) = 15:45 UTC. GitHub zamanlanmış işleri yoğunlukta birkaç
+# dakika ile bir saat arası geciktirebilir; bu, kapanış verisinin oturması için sorun değildir.
+on:
+  schedule:
+    - cron: "45 15 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sinyal-gunlugu
+  cancel-in-progress: false
+
+jobs:
+  kaydet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Bağımlılıkları kur
+        run: pip install -r requirements.txt
+
+      - name: Günün sinyallerini günlüğe ekle
+        run: python tools/sinyal_gunlugu.py
+
+      - name: Değiştiyse commit et
+        run: |
+          if git diff --quiet -- data/sinyal_gunlugu.csv; then
+            echo "Günlükte değişiklik yok."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/sinyal_gunlugu.csv
+          git commit -m "Sinyal günlüğü: $(TZ=Europe/Istanbul date +%Y-%m-%d)"
+          git pull --rebase
+          git push
