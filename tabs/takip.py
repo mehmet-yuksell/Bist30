@@ -182,6 +182,8 @@ def _karar_ozeti(satirlar: list[dict]) -> None:
         callout("empty", None, TK_SUMMARY_NONE)
         return
     for grup, maddeler in dolu.items():
+        if grup == "al":
+            kalite_ui.alim_uyarisi()
         tur = "warn" if grup in ("sat", "dikkat") else "info"
         callout(tur, takip.GRUPLAR[grup], [f"{kod}: {neden}" for kod, neden in maddeler])
 

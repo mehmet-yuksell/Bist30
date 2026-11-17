@@ -253,6 +253,7 @@ def _render_status(data: feed.Feed, last_date, is_open: bool) -> None:
 
 def _render_alim(scan: dict, vade: str, provisional: bool) -> None:
     section_title(TS_TITLE, TS_CAPTION if vade == pv.KISA else TS_CAPTION_ORTA)
+    kalite_ui.alim_uyarisi()
     today = scan["alim"][vade]["today"]
     filtre = True if vade == pv.ORTA else None  # orta vadede listedekiler filtreden geçmiş sinyallerdir
     if today:

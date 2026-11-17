@@ -599,3 +599,10 @@ TK_UPLOAD_BAD = "Liste yüklenemedi: {hata}"
 TK_LEVEL_NOTE = (
     "Stop/hedef: son 10 bardaki alım sinyalinin seviyeleri; sinyal yoksa bugünkü bara göre (kapanış ∓ ATR katları)."
 )
+
+# Mehmet'in kararıyla (raporu okuduktan sonra) alım bölümlerinin üstünde gösterilir
+ALIM_UYARISI = (
+    "Bu sinyaller 2025'ten bu yana test döneminde maliyet sonrası pozitif getiri vermedi "
+    "(ayrıntı: Sistem Performansı sekmesi). Karar verirken tek başına kullanma."
+)
+SATIS_IYI = "Satış uyarılarından {adlar} ise kısa vadede iki dönemde de rastgele bir günden daha iyi uyardı."
