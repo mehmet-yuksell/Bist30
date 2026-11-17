@@ -285,6 +285,107 @@ Kabul edilen filtreler `tarayici_motor.py`'de `AlimFiltreleri` ayarıyla açıl�
 - Kısa vade (günlük): filtre yok
 - Orta vade (haftalık): aktif · piyasa_ema=100, uzun_trend_ema=300, tavan_esik=0.085
 
+## Aşama 3 — FIRSAT sistemi (sert düşüş sonrası toparlanma)
+
+Trend takip sisteminden bağımsız bir kural seti; yalnızca kısa vade (günlük). Kuralların tam metni `firsat.py` dosyasının başında. Tanımda açık olmayan üç nokta şöyle yorumlandı:
+
+- **Düşüş öncesi sağlamlık:** 1-5 günlük düşüş penceresinin başladığı günün kapanışı 200 günlük EMA'nın üstünde. Haftalık trend: tamamlanmış son haftalık kapanış 30 haftalık EMA'nın üstünde.
+- **Düşen bıçak elemesi:** düşüş bölümünün başından tetik gününe kadar herhangi bir gün bir kriter görüldüyse tetik elenir. K2'deki "düşüş günleri" son 5 gün; hacim ortalaması o günü içermeyen önceki 20 gün. K4: tamamlanmış haftaların Supertrend'i (10, 3) aşağı yönde.
+- **Stop ve hedef:** stop, dönüş günü dahil son 10 günün en düşüğünün 0,5 ATR altı. Hedef her gün bir önceki günün 20 günlük EMA'sı ile giriş + 2R'nin küçüğü; giriş EMA'nın üstündeyse işlem açılmaz.
+
+**TEST** ⬅ asıl sonuç
+
+| Sinyal | Sinyal sayısı | Hedef % | Stop % | Zaman aşımı % | Beklenen getiri (R) | Kâr faktörü | Ort. net getiri % | Hedefe medyan gün (Q1–Q3) | En uzun kayıp serisi | XU100 aynı tarihlerde % | XU100'e göre fark % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| FIRSAT (eleme sonrası) | 183 | 69,4 | 21,3 | 9,3 | **-0,147** | 0,49 | -0,88 | 1 (1–3) | 6 | 0,17 | -0,86 |
+| Elenen tetikler (düşen bıçak riski) | 161 | 67,7 | 16,8 | 15,5 | **-0,051** | 0,81 | -0,46 | 2 (1–4) | 3 | -0,33 | 0,07 |
+| Tüm tetikler (eleme olmadan) | 344 | 68,6 | 19,2 | 12,2 | **-0,102** | 0,64 | -0,68 | 2 (1–4) | 8 | -0,06 | -0,42 |
+| Kurulum günü giriş (dönüş beklenmeden) | 606 | 45,4 | 53,3 | 1,3 | **-0,098** | 0,84 | -0,24 | 2 (1–3) | 16 | -0,20 | 0,16 |
+| Rastgele gün (aynı stop/hedef/süre kuralları) | 22892 | 58,7 | 37,4 | 3,9 | **-0,112** | 0,75 | -0,35 | 2 (1–4) | 60 | -0,01 | -0,13 |
+
+**GELİŞTİRME**
+
+| Sinyal | Sinyal sayısı | Hedef % | Stop % | Zaman aşımı % | Beklenen getiri (R) | Kâr faktörü | Ort. net getiri % | Hedefe medyan gün (Q1–Q3) | En uzun kayıp serisi | XU100 aynı tarihlerde % | XU100'e göre fark % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| FIRSAT (eleme sonrası) | 550 | 77,1 | 17,6 | 5,3 | **-0,028** | 0,88 | -0,06 | 2 (1–4) | 8 | 0,25 | -0,02 |
+| Elenen tetikler (düşen bıçak riski) | 263 | 74,5 | 18,6 | 6,8 | **0,062** | 1,28 | 0,72 | 3 (1–5) | 6 | 0,42 | 0,59 |
+| Tüm tetikler (eleme olmadan) | 813 | 76,3 | 18,0 | 5,8 | **0,001** | 1,01 | 0,19 | 2 (1–4) | 8 | 0,30 | 0,18 |
+| Kurulum günü giriş (dönüş beklenmeden) | 1432 | 45,6 | 52,6 | 1,8 | **-0,134** | 0,77 | -0,47 | 2 (1–3) | 33 | 0,24 | -0,50 |
+| Rastgele gün (aynı stop/hedef/süre kuralları) | 33168 | 62,6 | 34,0 | 3,4 | **-0,051** | 0,87 | -0,07 | 2 (1–4) | 40 | 0,20 | -0,04 |
+
+**Kazanç / kayıp yapısı (FIRSAT)** — sonuç türüne göre ortalama R ve ortalama risk mesafesi
+
+| Dönem | Hedef: ort. R | Stop: ort. R | Zaman aşımı: ort. R | Ort. risk (giriş−stop, %) |
+|---|---:|---:|---:|---:|
+| GELİŞTİRME | 0,26 | -1,15 | -0,44 | 9,8 |
+| TEST | 0,20 | -1,14 | -0,48 | 8,6 |
+
+**Düşen bıçak kriterleri tek tek** (tetiklerde; kriter görülen tetiklerin beklenen getirisi, kriter görülmeyen tetiklere göre)
+
+| Kriter | Dönem | Görülen tetik | Beklenen R (görülen) | Görülmeyen tetik | Beklenen R (görülmeyen) | Fark (R) |
+|---|---|---:|---:|---:|---:|---:|
+| K1 (200 günlük EMA'nın altına yerleşti) | GELİŞTİRME | 113 | 0,146 | 700 | -0,022 | 0,168 |
+| K1 (200 günlük EMA'nın altına yerleşti) | TEST | 122 | -0,063 | 222 | -0,124 | 0,060 |
+| K2 (yüksek hacimli dipte kapanış (kurumsal satış)) | GELİŞTİRME | 24 | 0,064 | 789 | -0,001 | 0,064 |
+| K2 (yüksek hacimli dipte kapanış (kurumsal satış)) | TEST | 21 | -0,183 | 323 | -0,097 | -0,086 |
+| K3 (52 haftanın en düşüğü kırıldı) | GELİŞTİRME | 3 | 0,273 | 810 | 0,000 | 0,273 |
+| K3 (52 haftanın en düşüğü kırıldı) | TEST | 5 | -0,245 | 339 | -0,100 | -0,145 |
+| K4 (haftalık Supertrend aşağı) | GELİŞTİRME | 209 | 0,057 | 604 | -0,018 | 0,076 |
+| K4 (haftalık Supertrend aşağı) | TEST | 93 | -0,085 | 251 | -0,109 | 0,024 |
+
+**Düşüş bölümlerinin sonraki 20 günü** (bölümün ilk günü, o güne kadarki bilgiyle "düşen bıçak riski" var mı; ertesi gün açılıştan 20 gün sonraki kapanışa getiri, maliyetsiz)
+
+| Grup | Dönem | Bölüm sayısı | Ort. 20 gün getiri % | Medyan % | Negatif biten % | XU100 aynı tarihlerde % | XU100'e göre fark % |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Düşen bıçak riski | GELİŞTİRME | 326 | 4,44 | 1,47 | 45,4 | 4,80 | -0,37 |
+| Temiz | GELİŞTİRME | 1341 | 3,76 | 1,82 | 45,3 | 3,46 | 0,31 |
+| Düşen bıçak riski | TEST | 169 | 0,65 | -1,69 | 54,4 | -0,63 | 1,32 |
+| Temiz | TEST | 509 | 0,39 | -0,63 | 52,7 | 0,03 | 0,36 |
+
+**Uyarılar** (sinyali engellemez; FIRSAT işlemleri uyarıya göre)
+
+| Uyarı | Dönem | Uyarılı sinyal | Beklenen R (uyarılı) | Uyarısız sinyal | Beklenen R (uyarısız) |
+|---|---|---:|---:|---:|---:|
+| Hisseye özel düşüş (KAP'ı kontrol et) | GELİŞTİRME | 16 | -0,136 | 534 | -0,024 |
+| Hisseye özel düşüş (KAP'ı kontrol et) | TEST | 5 | -0,643 | 178 | -0,133 |
+| Piyasa geneli satış (pozisyonu küçük tut) | GELİŞTİRME | 98 | 0,053 | 452 | -0,045 |
+| Piyasa geneli satış (pozisyonu küçük tut) | TEST | 28 | -0,079 | 155 | -0,160 |
+
+**Eleme gerçekten kötü hisseleri ayırıyor mu?**
+
+Ölçüt: iki dönemde de (1) elenen tetiklerin beklenen getirisi FIRSAT'tan düşük ve (2) düşen bıçak riski işaretli bölümlerin 20 günlük getirisi temiz bölümlerden düşük.
+
+- GELİŞTİRME: FIRSAT − elenen = -0,089 R (✘); bölüm getirisi işaretli < temiz: ✘
+- TEST: FIRSAT − elenen = -0,096 R (✘); bölüm getirisi işaretli < temiz: ✘
+
+**Sonuç:** eleme iki dönemde birlikte ayırmıyor.
+
+### Düşen bıçak elemesinin ayarlanması (Kural 7)
+
+Her kriter için 3 eşik denendi. Seçim yalnızca GELİŞTİRME'de: her yıl için "temiz tetiklerin beklenen getirisi − işaretli tetiklerinki" hesaplandı (pozitif = kriter kötü tetikleri yakalıyor); en çok yılda pozitif olan eşik seçildi. Seçilen eşik GELİŞTİRME'nin tamamında da pozitif değilse kriter elemeden çıkarıldı. TEST'e yalnızca son elemeyi doğrulamak için bakıldı.
+
+| Kriter | Eşik | İşaretli tetik (GEL) | Temiz − işaretli (GEL, R) | Ayıran yıl | En kötü yıl | Seçildi |
+|---|---|---:|---:|---:|---:|:---:|
+| K1 | 2/3 gün | 113 | -0,168 | 0/4 | -0,322 | ✔ |
+| K1 | 3/3 gün | 77 | -0,211 | 0/4 | -0,599 |  |
+| K1 | 4/5 gün | 55 | -0,244 | 0/4 | -0,645 |  |
+| K2 | 2× hacim | 76 | -0,054 | 2/4 | -0,240 |  |
+| K2 | 3× hacim | 24 | -0,064 | 2/4 | -0,525 |  |
+| K2 | 4× hacim | 13 | 0,072 | 3/4 | -0,866 | ✔ |
+| K3 | 26 hafta | 10 | -0,315 | 1/4 | -1,079 | ✔ |
+| K3 | 52 hafta | 3 | -0,273 | 0/4 | -0,356 |  |
+| K3 | 104 hafta | 1 | -0,071 | 0/4 | -0,116 |  |
+| K4 | çarpan 2 | 403 | -0,073 | 1/4 | -0,237 | ✔ |
+| K4 | çarpan 3 | 209 | -0,076 | 0/4 | -0,139 |  |
+| K4 | çarpan 4 | 84 | -0,107 | 0/4 | -0,173 |  |
+
+**Ayarlanmış eleme:** K2 (4× hacim)
+
+| Dönem | FIRSAT (ayarlı) sinyal | Beklenen R | Elenen sinyal | Beklenen R | İşaretli bölüm 20g % | Temiz bölüm 20g % | Ayırıyor mu |
+|---|---:|---:|---:|---:|---:|---:|---|
+| GELİŞTİRME | 800 | 0,002 | 13 | -0,070 | 0,76 | 3,93 | ✔ |
+| TEST | 338 | -0,104 | 6 | -0,013 | -1,84 | 0,48 | ✘ |
+
 ## Sınırlamalar
 
 - **Hayatta kalma yanlılığı:** test evreni bugünkü BIST 100 listesidir. Geçmişte endekste olup çıkarılan, iflas eden ya da işlemden kaldırılan hisseler yoktur; endekse sonradan girenler genelde iyi performans gösterdiği için girmiştir. Sonuçlar bu yüzden olduğundan iyi görünebilir.

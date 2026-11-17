@@ -38,16 +38,23 @@ class Kurallar:
 
 
 def simule_et(o: np.ndarray, h: np.ndarray, lo: np.ndarray, c: np.ndarray,
-              sinyal: int, stop: float, hedef: float, k: Kurallar) -> dict:
-    """Tek bir sinyali sinyal barından (indeks) itibaren simüle eder."""
+              sinyal: int, stop: float, hedef, k: Kurallar) -> dict:
+    """Tek bir sinyali sinyal barından (indeks) itibaren simüle eder.
+
+    hedef: sabit seviye ya da bar bar geçerli hedef dizisi (o barın açılışından önce bilinen
+    değerlerle hesaplanmış olmalı; ör. bir önceki günün EMA'sı).
+    """
     n = len(c)
     giris_i = sinyal + 1
     if giris_i >= n:
         return {"sonuc": "acik"}
     giris = float(o[giris_i])
     s = k.side
-    # Açılış zaten stop'un ya da hedefin ötesinde: işlem açılmaz
-    if s * (giris - stop) <= 0 or s * (hedef - giris) <= 0:
+    hedef_dizisi = np.ndim(hedef) > 0
+    hedef_bar = (lambda j: float(hedef[j])) if hedef_dizisi else (lambda j: float(hedef))
+    # Açılış zaten stop'un ya da hedefin ötesinde (ya da hedef bilinmiyor): işlem açılmaz
+    ilk_hedef = hedef_bar(giris_i)
+    if not np.isfinite(ilk_hedef) or s * (giris - stop) <= 0 or s * (ilk_hedef - giris) <= 0:
         return {"sonuc": "gecersiz", "giris_i": giris_i, "giris": giris}
     risk = abs(giris - stop)
 
@@ -66,14 +73,17 @@ def simule_et(o: np.ndarray, h: np.ndarray, lo: np.ndarray, c: np.ndarray,
             en_iyi = max(en_iyi, lehte) if s == 1 else min(en_iyi, lehte)
             break
         en_iyi = max(en_iyi, lehte) if s == 1 else min(en_iyi, lehte)
-        if s * (lehte - hedef) >= 0:
-            cikis = o[j] if s * (o[j] - hedef) > 0 else hedef
-            cikis_i, sonuc = j, "hedef"
+        hedef_j = hedef_bar(j)
+        if np.isfinite(hedef_j) and s * (lehte - hedef_j) >= 0:
+            cikis = o[j] if s * (o[j] - hedef_j) > 0 else hedef_j
+            cikis_i, sonuc, hedef_son = j, "hedef", hedef_j
             break
     if sonuc is None:
         if son_i >= n:
             return {"sonuc": "acik", "giris_i": giris_i, "giris": giris}
         cikis, cikis_i, sonuc = float(c[son_i]), son_i, "zaman"
+    if sonuc != "hedef":
+        hedef_son = hedef_bar(cikis_i)
 
     brut = s * (cikis - giris) / giris
     net = brut - k.cost
@@ -84,7 +94,7 @@ def simule_et(o: np.ndarray, h: np.ndarray, lo: np.ndarray, c: np.ndarray,
         "giris": giris,
         "cikis": float(cikis),
         "stop": float(stop),
-        "hedef": float(hedef),
+        "hedef": float(hedef_son),              # çıkış barında geçerli hedef
         "gun": cikis_i - sinyal,
         "getiri": net,                          # maliyet sonrası, oran
         "r": net * giris / risk,                # maliyet sonrası, R

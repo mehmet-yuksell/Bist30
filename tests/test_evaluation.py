@@ -172,3 +172,18 @@ def test_delayed_entry_keeps_signal_levels_and_date():
     assert satir["giris"] == 104
     assert (satir["sonuc"], satir["gun"]) == ("hedef", 3)  # asıl sinyalden 3 bar
     assert satir["r"] == pytest.approx((110 - 104) / (104 - 95))
+
+
+def test_dynamic_target_array_per_bar():
+    # Hedef 2. barda 115, 3. barda 104'e iner (ör. düşen EMA); 3. barda yüksek 105 -> hedef 104
+    o, h, lo, c = bars([(100, 100, 100, 100), (100, 101, 99, 100), (100, 103, 99, 102),
+                        (102, 105, 101, 104), (104, 106, 103, 105)])
+    hedefler = np.array([np.nan, 115, 115, 104, 104])
+    sonuc = simule_et(o, h, lo, c, 0, stop=95, hedef=hedefler, k=UZUN)
+    assert (sonuc["sonuc"], sonuc["gun"], sonuc["cikis"]) == ("hedef", 3, 104)
+
+
+def test_dynamic_target_below_entry_is_invalid():
+    o, h, lo, c = bars([(100, 100, 100, 100), (100, 101, 99, 100)])
+    hedefler = np.array([np.nan, 99.0])
+    assert simule_et(o, h, lo, c, 0, stop=95, hedef=hedefler, k=UZUN)["sonuc"] == "gecersiz"

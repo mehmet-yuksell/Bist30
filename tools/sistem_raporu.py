@@ -12,6 +12,7 @@ başında oturmuş olsun diye). data.py'nin indirme fonksiyonları önbelleksiz 
 import argparse
 import sys
 import warnings
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -24,6 +25,7 @@ warnings.filterwarnings("ignore")
 
 import evaluation as ev  # noqa: E402
 import filtreler  # noqa: E402
+import firsat  # noqa: E402
 import motor_veri  # noqa: E402
 import tarayici_motor as motor  # noqa: E402
 from config import BIST100_TICKERS, BIST100_LAST_UPDATED  # noqa: E402
@@ -100,6 +102,65 @@ def _bayrak_ekle(t: pd.DataFrame, bayrak: dict[str, pd.Series]) -> pd.DataFrame:
     return t
 
 
+FIRSAT_ETIKET = ["K1", "K2", "K3", "K4", "uyari_hisseye_ozel", "uyari_piyasa"]
+# Eleme ayırmazsa denenecek eşikler (kriter başına en fazla 3; ortadaki asıl tanım)
+K_VARYANT = {
+    "K1": {"2/3 gün": {"k1_gun": 2, "k1_pencere": 3}, "3/3 gün": {"k1_gun": 3, "k1_pencere": 3},
+           "4/5 gün": {"k1_gun": 4, "k1_pencere": 5}},
+    "K2": {"2× hacim": {"hacim_kat": 2.0}, "3× hacim": {"hacim_kat": 3.0}, "4× hacim": {"hacim_kat": 4.0}},
+    "K3": {"26 hafta": {"yil_gun": 126}, "52 hafta": {"yil_gun": 252}, "104 hafta": {"yil_gun": 504}},
+    "K4": {"çarpan 2": {"k4_carpan": 2.0}, "çarpan 3": {"k4_carpan": 3.0}, "çarpan 4": {"k4_carpan": 4.0}},
+}
+
+
+def firsat_islemleri(girdi: pd.DataFrame, endeks: pd.DataFrame, kod: str) -> dict[str, pd.DataFrame]:
+    """FIRSAT sistemi işlemleri ve kıyasları; ayrıca düşüş bölümlerinin 20 günlük getirisi."""
+    s = firsat.firsat_hesapla(girdi, endeks)
+    ilk = ILK_BAR_GUNLUK
+
+    def etiketle(t: pd.DataFrame) -> pd.DataFrame:
+        if not t.empty:
+            for col in FIRSAT_ETIKET:
+                t[col] = s[col].reindex(t["tarih"]).to_numpy(dtype=bool)
+        return t
+
+    # Her kriter eşiği için bayraklar (tetik ve bölüm başı kriterlerden bağımsızdır)
+    varyant_bayrak = {}
+    for key, varyantlar in K_VARYANT.items():
+        for etiket, ayar in varyantlar.items():
+            sv = firsat.firsat_hesapla(girdi, endeks, replace(firsat.VARSAYILAN, **ayar))
+            varyant_bayrak[f"{key}|{etiket}"] = sv[key]
+
+    def etiketle_varyant(t: pd.DataFrame) -> pd.DataFrame:
+        if not t.empty:
+            for anahtar, seri in varyant_bayrak.items():
+                t[anahtar] = seri.reindex(t["tarih"]).to_numpy(dtype=bool)
+        return t
+
+    sonuc = {
+        "F_FIRSAT": etiketle(firsat.islemler(s, s["FIRSAT"], kod, ilk)),
+        "F_BICAK": etiketle(firsat.islemler(s, s["BICAK"], kod, ilk)),
+        "F_TETIK": etiketle_varyant(etiketle(firsat.islemler(s, s["tetik"], kod, ilk))),
+        "F_KURULUM": firsat.islemler(s, s["bolum_basi"], kod, ilk),
+        "F_RASTGELE": firsat.islemler(s, pd.Series(True, index=s.index), kod, ilk),
+    }
+    # Düşüş bölümleri: bölüm başında (o güne kadarki bilgiyle) bıçak riski var mı, 20 gün sonra ne oldu
+    o, c = s["Open"].to_numpy(), s["Close"].to_numpy()
+    satirlar = []
+    for i in np.flatnonzero(s["bolum_basi"].to_numpy()):
+        if i < ilk or i + 20 >= len(s):
+            continue
+        satirlar.append({
+            "kod": kod, "tarih": s.index[i], "giris_tarihi": s.index[i + 1], "cikis_tarihi": s.index[i + 20],
+            "getiri20": c[i + 20] / o[i + 1] - 1,
+            "bicak": bool(s["BICAK_RISKI"].iloc[i]),
+            **{key: bool(s[key].iloc[i]) for key in firsat.BICAK_KRITERLERI},
+            **{anahtar: bool(seri.iloc[i]) for anahtar, seri in varyant_bayrak.items()},
+        })
+    sonuc["F_BOLUM"] = pd.DataFrame(satirlar)
+    return sonuc
+
+
 def tum_islemler(hisseler: dict, endeks: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
     """{vade: {sinyal türü: işlemler}}; 'RASTGELE_AL' ve 'RASTGELE_SAT' her bardan giriştir.
 
@@ -132,10 +193,16 @@ def tum_islemler(hisseler: dict, endeks: pd.DataFrame) -> dict[str, dict[str, pd
                 isler[f"AL_F7_ANINDA|{etiket}"] = ev.islemler(s, teyitli, s["Stop"], s["Hedef"], alim, kod, ilk_bar)
             for sutun in SATIS_SINYALLERI:
                 isler[sutun] = ev.islemler(s, s[sutun], s_stop, s_hedef, satis, kod, ilk_bar)
+            if vade == "kisa":
+                isler.update(firsat_islemleri(girdi, endeks, kod))
             for tur, t in isler.items():
                 parcalar.setdefault(tur, []).append(t)
         for tur, liste in parcalar.items():
-            t = pd.concat([x for x in liste if not x.empty], ignore_index=True)
+            dolu = [x for x in liste if not x.empty]
+            if not dolu:
+                sonuc[vade][tur] = pd.DataFrame(columns=["kod", "tarih", "sonuc"])
+                continue
+            t = pd.concat(dolu, ignore_index=True)
             t = t[t["tarih"] >= ev.GELISTIRME[0]].reset_index(drop=True)
             t["endeks"] = ev.endeks_getirisi(t, endeksler[vade])
             sonuc[vade][tur] = t
@@ -241,6 +308,9 @@ def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisse_sayisi: int, veri_bitis: 
     asama2_satirlari, kabuller = asama2(sonuc)
     out += asama2_satirlari
     tum_ozet["kabuller"] = kabuller
+    asama3_satirlari, firsat_karar = asama3(sonuc)
+    out += asama3_satirlari
+    tum_ozet["firsat"] = firsat_karar
     out += sinirlamalar()
     REPORT.write_text("\n".join(out) + "\n", encoding="utf-8")
     return tum_ozet
@@ -425,6 +495,191 @@ def asama2(sonuc: dict) -> tuple[list[str], dict]:
     return out, kabuller
 
 
+# ---------------------------------------------------------------------------
+# Aşama 3 — FIRSAT sistemi
+# ---------------------------------------------------------------------------
+
+def _donem(t: pd.DataFrame, donem: str) -> pd.DataFrame:
+    if t.empty:
+        return t
+    bas, bit = ev.DONEMLER[donem]
+    return t[(t["tarih"] >= bas) & (t["tarih"] <= bit)]
+
+
+def asama3(sonuc: dict) -> tuple[list[str], dict]:
+    sv = sonuc["kisa"]
+    out = [
+        "## Aşama 3 — FIRSAT sistemi (sert düşüş sonrası toparlanma)",
+        "",
+        "Trend takip sisteminden bağımsız bir kural seti; yalnızca kısa vade (günlük). Kuralların tam metni "
+        "`firsat.py` dosyasının başında. Tanımda açık olmayan üç nokta şöyle yorumlandı:",
+        "",
+        "- **Düşüş öncesi sağlamlık:** 1-5 günlük düşüş penceresinin başladığı günün kapanışı 200 günlük EMA'nın "
+        "üstünde. Haftalık trend: tamamlanmış son haftalık kapanış 30 haftalık EMA'nın üstünde.",
+        "- **Düşen bıçak elemesi:** düşüş bölümünün başından tetik gününe kadar herhangi bir gün bir kriter "
+        "görüldüyse tetik elenir. K2'deki \"düşüş günleri\" son 5 gün; hacim ortalaması o günü içermeyen önceki "
+        "20 gün. K4: tamamlanmış haftaların Supertrend'i (10, 3) aşağı yönde.",
+        "- **Stop ve hedef:** stop, dönüş günü dahil son 10 günün en düşüğünün 0,5 ATR altı. Hedef her gün "
+        "bir önceki günün 20 günlük EMA'sı ile giriş + 2R'nin küçüğü; giriş EMA'nın üstündeyse işlem açılmaz.",
+        "",
+    ]
+    tumu = pd.concat([sv["F_FIRSAT"], sv["F_BICAK"]], ignore_index=True) if not sv["F_BICAK"].empty else sv["F_FIRSAT"]
+    for donem in ("TEST", "GELİŞTİRME"):
+        bas, bit = ev.DONEMLER[donem]
+        out += [f"**{donem}**{' ⬅ asıl sonuç' if donem == 'TEST' else ''}", "",
+                BASLIK.format(birim="gün"), AYRAC]
+        for ad, tur in (("FIRSAT (eleme sonrası)", "F_FIRSAT"),
+                        ("Elenen tetikler (düşen bıçak riski)", "F_BICAK"),
+                        ("Tüm tetikler (eleme olmadan)", "F_TETIK"),
+                        ("Kurulum günü giriş (dönüş beklenmeden)", "F_KURULUM"),
+                        ("Rastgele gün (aynı stop/hedef/süre kuralları)", "F_RASTGELE")):
+            out.append(satir(ad, _r(sv[tur], donem)))
+        out.append("")
+
+    # Kazanç / kayıp yapısı: yüksek hedef oranına rağmen neden negatif?
+    out += ["**Kazanç / kayıp yapısı (FIRSAT)** — sonuç türüne göre ortalama R ve ortalama risk mesafesi", "",
+            "| Dönem | Hedef: ort. R | Stop: ort. R | Zaman aşımı: ort. R | Ort. risk (giriş−stop, %) |",
+            "|---|---:|---:|---:|---:|"]
+    for donem in ("GELİŞTİRME", "TEST"):
+        t = _donem(sv["F_FIRSAT"], donem)
+        t = t[t["sonuc"].isin(ev.OUTCOMES)] if not t.empty else t
+        if t.empty:
+            continue
+        ort = {s: t.loc[t["sonuc"] == s, "r"].mean() for s in ev.OUTCOMES}
+        risk = ((t["giris"] - t["stop"]) / t["giris"]).mean() * 100
+        out.append(f"| {donem} | {_f(ort['hedef'], 2)} | {_f(ort['stop'], 2)} | {_f(ort['zaman'], 2)} | {_f(risk, 1)} |")
+    out.append("")
+
+    # Kriter bazında
+    out += ["**Düşen bıçak kriterleri tek tek** (tetiklerde; kriter görülen tetiklerin beklenen getirisi, "
+            "kriter görülmeyen tetiklere göre)", "",
+            "| Kriter | Dönem | Görülen tetik | Beklenen R (görülen) | Görülmeyen tetik | Beklenen R (görülmeyen) | Fark (R) |",
+            "|---|---|---:|---:|---:|---:|---:|"]
+    tetik = sv["F_TETIK"]
+    for key, aciklama in firsat.BICAK_KRITERLERI.items():
+        for donem in ("GELİŞTİRME", "TEST"):
+            if tetik.empty:
+                continue
+            var, yok = _r(tetik[tetik[key]], donem), _r(tetik[~tetik[key]], donem)
+            out.append(f"| {key} ({aciklama}) | {donem} | {var.get('sinyal', 0)} | {_f(var.get('beklenen_r'), 3)} | "
+                       f"{yok.get('sinyal', 0)} | {_f(yok.get('beklenen_r'), 3)} | "
+                       f"{_f(var.get('beklenen_r', np.nan) - yok.get('beklenen_r', np.nan), 3)} |")
+
+    # Bölüm başı 20 günlük getiri
+    bolum = sv["F_BOLUM"]
+    out += ["", "**Düşüş bölümlerinin sonraki 20 günü** (bölümün ilk günü, o güne kadarki bilgiyle \"düşen bıçak "
+            "riski\" var mı; ertesi gün açılıştan 20 gün sonraki kapanışa getiri, maliyetsiz)", "",
+            "| Grup | Dönem | Bölüm sayısı | Ort. 20 gün getiri % | Medyan % | Negatif biten % | XU100 aynı tarihlerde % | XU100'e göre fark % |",
+            "|---|---|---:|---:|---:|---:|---:|---:|"]
+    ayrim = {}
+    for donem in ("GELİŞTİRME", "TEST"):
+        b = _donem(bolum, donem)
+        for ad, grup in (("Düşen bıçak riski", b[b["bicak"]] if not b.empty else b),
+                         ("Temiz", b[~b["bicak"]] if not b.empty else b)):
+            if grup.empty:
+                out.append(f"| {ad} | {donem} | 0 | — | — | — | — | — |")
+                continue
+            g = grup["getiri20"]
+            ayrim[(ad, donem)] = g.mean()
+            out.append(f"| {ad} | {donem} | {len(g)} | {_f(g.mean() * 100, 2)} | {_f(g.median() * 100, 2)} | "
+                       f"{_f((g < 0).mean() * 100, 1)} | {_f(grup['endeks'].mean() * 100, 2)} | "
+                       f"{_f((g - grup['endeks']).mean() * 100, 2)} |")
+
+    # Uyarılar
+    fr_t = sv["F_FIRSAT"]
+    out += ["", "**Uyarılar** (sinyali engellemez; FIRSAT işlemleri uyarıya göre)", "",
+            "| Uyarı | Dönem | Uyarılı sinyal | Beklenen R (uyarılı) | Uyarısız sinyal | Beklenen R (uyarısız) |",
+            "|---|---|---:|---:|---:|---:|"]
+    for key, ad in (("uyari_hisseye_ozel", "Hisseye özel düşüş (KAP'ı kontrol et)"),
+                    ("uyari_piyasa", "Piyasa geneli satış (pozisyonu küçük tut)")):
+        for donem in ("GELİŞTİRME", "TEST"):
+            if fr_t.empty:
+                continue
+            var, yok = _r(fr_t[fr_t[key]], donem), _r(fr_t[~fr_t[key]], donem)
+            out.append(f"| {ad} | {donem} | {var.get('sinyal', 0)} | {_f(var.get('beklenen_r'), 3)} | "
+                       f"{yok.get('sinyal', 0)} | {_f(yok.get('beklenen_r'), 3)} |")
+
+    # Eleme ayırıyor mu?
+    karar = {}
+    for donem in ("GELİŞTİRME", "TEST"):
+        fr_r = _r(sv["F_FIRSAT"], donem).get("beklenen_r", np.nan)
+        bc_r = _r(sv["F_BICAK"], donem).get("beklenen_r", np.nan)
+        karar[donem] = {
+            "islem": fr_r > bc_r,
+            "bolum": ayrim.get(("Düşen bıçak riski", donem), np.nan) < ayrim.get(("Temiz", donem), np.nan),
+            "fark_r": fr_r - bc_r,
+        }
+    ayiriyor = all(k["islem"] and k["bolum"] for k in karar.values())
+    out += ["", "**Eleme gerçekten kötü hisseleri ayırıyor mu?**", "",
+            "Ölçüt: iki dönemde de (1) elenen tetiklerin beklenen getirisi FIRSAT'tan düşük ve (2) düşen bıçak "
+            "riski işaretli bölümlerin 20 günlük getirisi temiz bölümlerden düşük.", ""]
+    for donem, k in karar.items():
+        out.append(f"- {donem}: FIRSAT − elenen = {_f(k['fark_r'], 3)} R ({'✔' if k['islem'] else '✘'}); "
+                   f"bölüm getirisi işaretli < temiz: {'✔' if k['bolum'] else '✘'}")
+    out += ["", f"**Sonuç:** eleme {'iki dönemde de ayırıyor' if ayiriyor else 'iki dönemde birlikte ayırmıyor'}.", ""]
+    ayar_satirlari, ayar = eleme_ayari(sv["F_TETIK"], sv["F_BOLUM"]) if not ayiriyor else ([], None)
+    out += ayar_satirlari
+    return out, {"ayiriyor": ayiriyor, "karar": karar, "ayar": ayar}
+
+
+def _ayrim(t: pd.DataFrame, bayrak: pd.Series) -> float:
+    """Temiz tetiklerin beklenen getirisi − işaretli tetiklerinki (pozitif: kriter kötüleri yakalıyor)."""
+    return ev.ozet(t[~bayrak]).get("beklenen_r", np.nan) - ev.ozet(t[bayrak]).get("beklenen_r", np.nan)
+
+
+def eleme_ayari(tetik: pd.DataFrame, bolum: pd.DataFrame) -> tuple[list[str], dict]:
+    """Eleme ayırmadığında: kriter başına en fazla 3 eşik, seçim yalnızca GELİŞTİRME yıllarıyla."""
+    out = ["### Düşen bıçak elemesinin ayarlanması (Kural 7)", "",
+           "Her kriter için 3 eşik denendi. Seçim yalnızca GELİŞTİRME'de: her yıl için \"temiz tetiklerin beklenen "
+           "getirisi − işaretli tetiklerinki\" hesaplandı (pozitif = kriter kötü tetikleri yakalıyor); en çok yılda "
+           "pozitif olan eşik seçildi. Seçilen eşik GELİŞTİRME'nin tamamında da pozitif değilse kriter elemeden "
+           "çıkarıldı. TEST'e yalnızca son elemeyi doğrulamak için bakıldı.", "",
+           "| Kriter | Eşik | İşaretli tetik (GEL) | Temiz − işaretli (GEL, R) | Ayıran yıl | En kötü yıl | Seçildi |",
+           "|---|---|---:|---:|---:|---:|:---:|"]
+    gel = _donem(tetik, "GELİŞTİRME")
+    secilen = {}
+    for key, varyantlar in K_VARYANT.items():
+        adaylar = []
+        for etiket in varyantlar:
+            col = f"{key}|{etiket}"
+            yillik = {}
+            for y in GEL_YILLARI:
+                ty = gel[gel["tarih"].dt.year == y]
+                yillik[y] = _ayrim(ty, ty[col]) if ty[col].any() and (~ty[col]).any() else np.nan
+            adaylar.append((filtreler.yillik_tutarlilik(yillik), etiket, _ayrim(gel, gel[col]),
+                            ev.ozet(gel[gel[col]]).get("sinyal", 0)))
+        en_iyi = max(adaylar, key=lambda a: a[0])
+        for (iyi, kotu), etiket, toplam, adet in adaylar:
+            out.append(f"| {key} | {etiket} | {adet} | {_f(toplam, 3)} | {iyi}/4 | {_f(kotu, 3)} | "
+                       f"{'✔' if etiket == en_iyi[1] else ''} |")
+        if en_iyi[2] > 0:
+            secilen[key] = en_iyi[1]
+
+    out += ["", "**Ayarlanmış eleme:** " + (", ".join(f"{k} ({v})" for k, v in secilen.items()) if secilen
+            else "hiçbir kriter GELİŞTİRME'de bile kötü tetikleri ayırmıyor; eleme kaldırılırsa FIRSAT = tüm tetikler."), ""]
+    if not secilen:
+        return out, {"secilen": {}}
+
+    def bayrak(df: pd.DataFrame) -> pd.Series:
+        return np.logical_or.reduce([df[f"{k}|{v}"] for k, v in secilen.items()])
+
+    out += ["| Dönem | FIRSAT (ayarlı) sinyal | Beklenen R | Elenen sinyal | Beklenen R | İşaretli bölüm 20g % | Temiz bölüm 20g % | Ayırıyor mu |",
+            "|---|---:|---:|---:|---:|---:|---:|---|"]
+    sonuc = {"secilen": secilen}
+    for donem in ("GELİŞTİRME", "TEST"):
+        t, b = _donem(tetik, donem), _donem(bolum, donem)
+        fl, bfl = bayrak(t), bayrak(b)
+        temiz, elenen = ev.ozet(t[~fl]), ev.ozet(t[fl])
+        b_isaretli, b_temiz = b.loc[bfl, "getiri20"].mean(), b.loc[~bfl, "getiri20"].mean()
+        ayiriyor = temiz.get("beklenen_r", np.nan) > elenen.get("beklenen_r", np.nan) and b_isaretli < b_temiz
+        sonuc[donem] = {"firsat": temiz, "elenen": elenen, "ayiriyor": bool(ayiriyor)}
+        out.append(f"| {donem} | {temiz.get('sinyal', 0)} | {_f(temiz.get('beklenen_r'), 3)} | {elenen.get('sinyal', 0)} | "
+                   f"{_f(elenen.get('beklenen_r'), 3)} | {_f(b_isaretli * 100, 2)} | {_f(b_temiz * 100, 2)} | "
+                   f"{'✔' if ayiriyor else '✘'} |")
+    out.append("")
+    return out, sonuc
+
+
 def sinirlamalar() -> list[str]:
     return [
         "## Sınırlamalar",
@@ -455,6 +710,7 @@ def main() -> int:
     veri_bitis = max(df.index[-1] for df in hisseler.values())
     ozet = rapor_yaz(sonuc, endeks, len(hisseler), veri_bitis)
     print("Kabul edilen filtreler:", ozet.pop("kabuller"))
+    print("FIRSAT eleme:", ozet.pop("firsat"))
     for vade in ozet:
         for donem in ozet[vade]:
             s = ozet[vade][donem]
