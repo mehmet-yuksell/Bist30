@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 warnings.filterwarnings("ignore")
 
 import evaluation as ev  # noqa: E402
+import filtreler  # noqa: E402
 import motor_veri  # noqa: E402
 import tarayici_motor as motor  # noqa: E402
 from config import BIST100_TICKERS, BIST100_LAST_UPDATED  # noqa: E402
@@ -79,8 +80,32 @@ def satis_seviyeleri(sonuc: pd.DataFrame, ayar) -> tuple[pd.Series, pd.Series]:
     return sonuc["Close"] + mesafe, sonuc["Close"] - mesafe * ayar.risk_odul
 
 
+def filtre_bayraklari(girdi: pd.DataFrame, s: pd.DataFrame, endeks: pd.DataFrame) -> dict[str, pd.Series]:
+    """Sinyal barları için her filtre varyantının geçip geçmediği ('F1|EMA 50' gibi anahtarlar)."""
+    oz = filtreler.zaman_dilimine_hizala(filtreler.gunluk_ozellikler(girdi, endeks), s.index)
+    bayrak = {}
+    for f, (_, varyantlar) in filtreler.FILTRELER.items():
+        if f == "F7":
+            continue
+        for etiket, esik in varyantlar.items():
+            bayrak[f"{f}|{etiket}"] = filtreler.maske(f, esik, oz, s)
+    return bayrak
+
+
+def _bayrak_ekle(t: pd.DataFrame, bayrak: dict[str, pd.Series]) -> pd.DataFrame:
+    if t.empty:
+        return t
+    for anahtar, seri in bayrak.items():
+        t[anahtar] = seri.reindex(t["tarih"]).to_numpy(dtype=bool)
+    return t
+
+
 def tum_islemler(hisseler: dict, endeks: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
-    """{vade: {sinyal türü: işlemler}}; 'RASTGELE_AL' ve 'RASTGELE_SAT' her bardan giriştir."""
+    """{vade: {sinyal türü: işlemler}}; 'RASTGELE_AL' ve 'RASTGELE_SAT' her bardan giriştir.
+
+    AL işlemlerine filtre bayrakları eklenir; 'AL_F7|<varyant>' teyitli ve bir bar gecikmeli
+    girişlerdir (Aşama 2).
+    """
     endeksler = {"kisa": endeks, "orta": haftalik_endeks(endeks)}
     sonuc = {vade: {} for vade in VADELER}
     for vade, bilgi in VADELER.items():
@@ -94,11 +119,17 @@ def tum_islemler(hisseler: dict, endeks: pd.DataFrame) -> dict[str, dict[str, pd
             s, ilk_bar = vade_sonucu(girdi, vade)
             herkes = pd.Series(True, index=s.index)
             s_stop, s_hedef = satis_seviyeleri(s, bilgi["ayar"])
+            bayrak = filtre_bayraklari(girdi, s, endeks)
             isler = {
-                "AL": ev.islemler(s, s["AL"], s["Stop"], s["Hedef"], alim, kod, ilk_bar),
+                "AL": _bayrak_ekle(ev.islemler(s, s["AL"], s["Stop"], s["Hedef"], alim, kod, ilk_bar), bayrak),
                 "RASTGELE_AL": ev.islemler(s, herkes, s["Stop"], s["Hedef"], alim, kod, ilk_bar),
                 "RASTGELE_SAT": ev.islemler(s, herkes, s_stop, s_hedef, satis, kod, ilk_bar),
             }
+            for etiket, seviye in filtreler.FILTRELER["F7"][1].items():
+                teyitli = s["AL"] & filtreler.teyit(s, seviye)
+                isler[f"AL_F7|{etiket}"] = _bayrak_ekle(
+                    ev.islemler_gecikmeli(s, teyitli, s["Stop"], s["Hedef"], alim, kod, ilk_bar), bayrak)
+                isler[f"AL_F7_ANINDA|{etiket}"] = ev.islemler(s, teyitli, s["Stop"], s["Hedef"], alim, kod, ilk_bar)
             for sutun in SATIS_SINYALLERI:
                 isler[sutun] = ev.islemler(s, s[sutun], s_stop, s_hedef, satis, kod, ilk_bar)
             for tur, t in isler.items():
@@ -207,6 +238,9 @@ def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisse_sayisi: int, veri_bitis: 
             out += ["", "Açık / geçersiz işlem sayısı: " + ", ".join(
                 f"{k} {a}/{g}" for k, (a, g) in acik.items()), ""]
     out += ana_bulgular(tum_ozet)
+    asama2_satirlari, kabuller = asama2(sonuc)
+    out += asama2_satirlari
+    tum_ozet["kabuller"] = kabuller
     out += sinirlamalar()
     REPORT.write_text("\n".join(out) + "\n", encoding="utf-8")
     return tum_ozet
@@ -234,6 +268,161 @@ def ana_bulgular(tum_ozet: dict) -> list[str]:
                 yorum = "iki dönemde de rastgeleden kötü"
             out.append(f"| {bilgi['ad']} | {ad} | {_f(gel, 3)} | {_f(test, 3)} | {yorum} |")
     return out + [""]
+
+
+# ---------------------------------------------------------------------------
+# Aşama 2 — alım filtreleri
+# ---------------------------------------------------------------------------
+
+GEL_YILLARI = (2021, 2022, 2023, 2024)
+MIN_TEST_SINYAL = 30
+
+
+def _r(t: pd.DataFrame, donem: str) -> dict:
+    return ev.doneme_gore(t)[donem]
+
+
+def _yillik_r(t: pd.DataFrame) -> dict[int, float]:
+    if t.empty:
+        return {y: np.nan for y in GEL_YILLARI}
+    return {y: ev.ozet(t[t["tarih"].dt.year == y]).get("beklenen_r", np.nan) for y in GEL_YILLARI}
+
+
+def filtreli(sonuc_vade: dict, f: str, etiket: str) -> pd.DataFrame:
+    if f == "F7":
+        return sonuc_vade[f"AL_F7|{etiket}"]
+    base = sonuc_vade["AL"]
+    return base[base[f"{f}|{etiket}"]]
+
+
+def birlesik(sonuc_vade: dict, kabul: dict[str, str]) -> pd.DataFrame:
+    """Kabul edilen filtrelerin hepsi (F7 kabul edildiyse gecikmeli girişle)."""
+    t = sonuc_vade[f"AL_F7|{kabul['F7']}"] if "F7" in kabul else sonuc_vade["AL"]
+    for f, etiket in kabul.items():
+        if f != "F7":
+            t = t[t[f"{f}|{etiket}"]]
+    return t
+
+
+def asama2(sonuc: dict) -> tuple[list[str], dict]:
+    out = [
+        "## Aşama 2 — Alım sinyali kalite filtreleri",
+        "",
+        "Her filtre başlangıç sistemine **tek başına** eklendi. Eşik seçimi yalnızca GELİŞTİRME verisiyle yapıldı: "
+        "her eşik için 2021, 2022, 2023 ve 2024 yıllarında beklenen getirinin başlangıca göre farkı hesaplandı; "
+        "**en çok yılda iyileştiren** eşik seçildi (eşitlikte en kötü yıldaki fark büyük olan). TEST sonucuna yalnızca "
+        "seçilen eşik için, kabul kararı aşamasında bakıldı; seçilmeyen eşiklerin TEST sonucu bu yüzden tabloda yok.",
+        "",
+        "Kabul şartları (üçü birlikte): (a) TEST'te beklenen getiriyi artırır, (b) GELİŞTİRME'de de artırır, "
+        f"(c) TEST'te en az {MIN_TEST_SINYAL} sinyal bırakır.",
+        "",
+        "> **Çoklu deneme uyarısı:** 8 filtre × 2 vade denendi. Bunlardan bazıları yalnızca şans eseri iki dönemde de "
+        "olumlu çıkabilir. Kabul edilen bir filtre \"kanıtlanmış iyileşme\" değil, bu kurallardan geçmiş bir adaydır.",
+        "",
+    ]
+    kabuller = {}
+    for vade, bilgi in VADELER.items():
+        sv = sonuc[vade]
+        base = sv["AL"]
+        base_gel, base_test = _r(base, "GELİŞTİRME"), _r(base, "TEST")
+        base_yil = _yillik_r(base)
+        out += [f"### {bilgi['ad']}", "",
+                f"Başlangıç: GELİŞTİRME {base_gel['sinyal']} sinyal, {_f(base_gel['beklenen_r'], 3)} R "
+                f"(standart hata ±{_f(base_gel['r_std_hata'], 3)}) · TEST {base_test['sinyal']} sinyal, "
+                f"{_f(base_test['beklenen_r'], 3)} R (standart hata ±{_f(base_test['r_std_hata'], 3)}). "
+                "Standart hatadan küçük farklar gürültüden ayırt edilemez.", "",
+                "**Eşik seçimi (yalnızca GELİŞTİRME)**", "",
+                "| Filtre | Eşik | Sinyal | Beklenen R | Fark (R) | İyileşen yıl | En kötü yıl farkı | Seçildi |",
+                "|---|---|---:|---:|---:|---:|---:|:---:|"]
+        secim = {}
+        for f, (aciklama, varyantlar) in filtreler.FILTRELER.items():
+            adaylar = []
+            for etiket in varyantlar:
+                t = filtreli(sv, f, etiket)
+                gel = _r(t, "GELİŞTİRME")
+                yil = _yillik_r(t)
+                fark = {y: yil[y] - base_yil[y] for y in GEL_YILLARI}
+                adaylar.append((filtreler.yillik_tutarlilik(fark), etiket, gel))
+            en_iyi = max(adaylar, key=lambda a: a[0])
+            secim[f] = en_iyi[1]
+            for (iyi_yil, en_kotu), etiket, gel in adaylar:
+                out.append(
+                    f"| {f} | {etiket} | {gel.get('sinyal', 0)} | {_f(gel.get('beklenen_r'), 3)} | "
+                    f"{_f(gel.get('beklenen_r', np.nan) - base_gel['beklenen_r'], 3)} | {iyi_yil}/4 | "
+                    f"{_f(en_kotu, 3)} | {'✔' if etiket == en_iyi[1] else ''} |")
+        out += ["", "**Kabul kararı**", "",
+                "| Filtre | Tanım | Seçilen eşik | GEL fark (R) | TEST fark (R) | TEST sinyal | Karar | Gerekçe |",
+                "|---|---|---|---:|---:|---:|---|---|"]
+        kabul = {}
+        for f, etiket in secim.items():
+            t = filtreli(sv, f, etiket)
+            gel, test = _r(t, "GELİŞTİRME"), _r(t, "TEST")
+            d_gel = gel.get("beklenen_r", np.nan) - base_gel["beklenen_r"]
+            d_test = test.get("beklenen_r", np.nan) - base_test["beklenen_r"]
+            nedenler = []
+            if not d_test > 0:
+                nedenler.append("TEST'te beklenen getiriyi artırmıyor")
+            if not d_gel > 0:
+                nedenler.append("GELİŞTİRME'de artırmıyor")
+            if test.get("sinyal", 0) < MIN_TEST_SINYAL:
+                nedenler.append(f"TEST'te {test.get('sinyal', 0)} sinyal kalıyor (<{MIN_TEST_SINYAL})")
+            if not nedenler:
+                kabul[f] = etiket
+            out.append(
+                f"| {f} | {filtreler.FILTRELER[f][0]} | {etiket} | {_f(d_gel, 3)} | {_f(d_test, 3)} | "
+                f"{test.get('sinyal', 0)} | {'**Kabul**' if not nedenler else 'Red'} | "
+                f"{'; '.join(nedenler) if nedenler else 'üç şart da sağlandı'} |")
+        kabuller[vade] = kabul
+
+        # Önce / sonra tabloları
+        satirlar = [("Başlangıç (filtresiz)", base)]
+        satirlar += [(f"{f} ({secim[f]}){' ✔' if f in kabul else ''}", filtreli(sv, f, secim[f]))
+                     for f in filtreler.FILTRELER]
+        if kabul:
+            satirlar.append(("Kabul edilenlerin hepsi birlikte: " + ", ".join(kabul), birlesik(sv, kabul)))
+        for donem in ("TEST", "GELİŞTİRME"):
+            out += ["", f"**Önce / sonra — {donem}**{' ⬅ asıl sonuç' if donem == 'TEST' else ''}", "",
+                    BASLIK.format(birim=bilgi["birim"]), AYRAC]
+            out += [satir(ad, _r(t, donem)) for ad, t in satirlar]
+
+        # F7 gecikme maliyeti
+        out += ["", "**F7 teyit gününün gecikme maliyeti** (aynı teyitli sinyaller: ertesi gün girişe karşı "
+                "bir gün bekleyip giriş)", "",
+                "> \"Hemen giriş\" gerçekte yapılamaz: teyit ertesi günün kapanışında bilinir, o güne girmek "
+                "geleceği bilmek olur. Bu sütun yalnızca gecikmenin maliyetini ölçmek için vardır; F7'nin "
+                "kendi sonucu \"gecikmeli giriş\"tir.", "",
+                "| Teyit seviyesi | Dönem | Sinyal | Hemen giriş R | Gecikmeli giriş R | Gecikmenin etkisi (R) |",
+                "|---|---|---:|---:|---:|---:|"]
+        for etiket in filtreler.FILTRELER["F7"][1]:
+            for donem in ("GELİŞTİRME", "TEST"):
+                hemen = _r(sv[f"AL_F7_ANINDA|{etiket}"], donem)
+                gec = _r(sv[f"AL_F7|{etiket}"], donem)
+                out.append(f"| {etiket} | {donem} | {gec.get('sinyal', 0)} | {_f(hemen.get('beklenen_r'), 3)} | "
+                           f"{_f(gec.get('beklenen_r'), 3)} | "
+                           f"{_f(gec.get('beklenen_r', np.nan) - hemen.get('beklenen_r', np.nan), 3)} |")
+
+        if kabul:
+            t = birlesik(sv, kabul)
+            gel, test = _r(t, "GELİŞTİRME"), _r(t, "TEST")
+            d_gel = gel.get("beklenen_r", np.nan) - base_gel["beklenen_r"]
+            d_test = test.get("beklenen_r", np.nan) - base_test["beklenen_r"]
+            gecti = d_gel > 0 and d_test > 0 and test.get("sinyal", 0) >= MIN_TEST_SINYAL
+            out += ["", f"**Birleşik sonuç:** {', '.join(f'{k} ({v})' for k, v in kabul.items())} birlikte · "
+                    f"GELİŞTİRME farkı {_f(d_gel, 3)} R, TEST farkı {_f(d_test, 3)} R, TEST'te {test.get('sinyal', 0)} "
+                    f"sinyal → {'üç şartı sağlıyor' if gecti else 'üç şartı birlikte sağlamıyor'}."]
+        else:
+            out += ["", "**Birleşik sonuç:** bu vadede kabul edilen filtre yok."]
+        out.append("")
+    out += ["### Motordaki karşılığı", "",
+            "Kabul edilen filtreler `tarayici_motor.py`'de `AlimFiltreleri` ayarıyla açılıp kapatılabilir; skor ve "
+            "`AL` sütunu değişmez, filtrelenmiş sinyal `AL_filtreli` sütunundadır.", ""]
+    for vade, bilgi in VADELER.items():
+        f = bilgi["ayar"].filtreler
+        out.append(f"- {bilgi['ad']}: " + (
+            f"aktif · piyasa_ema={f.piyasa_ema}, uzun_trend_ema={f.uzun_trend_ema}, tavan_esik={f.tavan_esik}"
+            if f.aktif else "filtre yok"))
+    out.append("")
+    return out, kabuller
 
 
 def sinirlamalar() -> list[str]:
@@ -265,6 +454,7 @@ def main() -> int:
     pd.to_pickle(sonuc, CACHE / "islemler.pkl")
     veri_bitis = max(df.index[-1] for df in hisseler.values())
     ozet = rapor_yaz(sonuc, endeks, len(hisseler), veri_bitis)
+    print("Kabul edilen filtreler:", ozet.pop("kabuller"))
     for vade in ozet:
         for donem in ozet[vade]:
             s = ozet[vade][donem]

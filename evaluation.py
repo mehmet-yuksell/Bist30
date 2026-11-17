@@ -118,6 +118,32 @@ def islemler(df: pd.DataFrame, sinyal_sutunu: pd.Series, stop: pd.Series, hedef:
     return pd.DataFrame(satirlar)
 
 
+def islemler_gecikmeli(df: pd.DataFrame, sinyal_sutunu: pd.Series, stop: pd.Series, hedef: pd.Series,
+                       k: Kurallar, kod: str = "", ilk_bar: int = 0, gecikme: int = 1) -> pd.DataFrame:
+    """Teyit beklenen girişler: stop/hedef sinyal barından, giriş `gecikme` bar sonraki barın açılışı.
+
+    Satırın "tarih"i asıl sinyal tarihidir (dönem ataması değişmesin); "gun" da asıl sinyal
+    barından sayılır, böylece gecikmenin süresi de ölçüme girer.
+    """
+    o, h, lo, c = (df[col].to_numpy(dtype=float) for col in ("Open", "High", "Low", "Close"))
+    stop_a, hedef_a = stop.to_numpy(dtype=float), hedef.to_numpy(dtype=float)
+    satirlar = []
+    for i in np.flatnonzero(sinyal_sutunu.to_numpy(dtype=bool)):
+        if i < ilk_bar or not (np.isfinite(stop_a[i]) and np.isfinite(hedef_a[i])):
+            continue
+        sonuc = simule_et(o, h, lo, c, int(i) + gecikme, stop_a[i], hedef_a[i], k)
+        if "gun" in sonuc:
+            sonuc["gun"] += gecikme
+        sonuc["kod"] = kod
+        sonuc["tarih"] = df.index[i]
+        if "giris_i" in sonuc:
+            sonuc["giris_tarihi"] = df.index[sonuc["giris_i"]]
+        if "cikis_i" in sonuc:
+            sonuc["cikis_tarihi"] = df.index[sonuc["cikis_i"]]
+        satirlar.append(sonuc)
+    return pd.DataFrame(satirlar)
+
+
 def endeks_getirisi(trades: pd.DataFrame, endeks: pd.DataFrame) -> pd.Series:
     """Her işlem için endeksin aynı tarihlerde (giriş açılışı → çıkış kapanışı) getirisi."""
     if trades.empty or "giris_tarihi" not in trades:
@@ -160,6 +186,7 @@ def ozet(trades: pd.DataFrame, side: int = 1) -> dict:
         "stop_pct": (bitti["sonuc"] == "stop").mean() * 100,
         "zaman_pct": (bitti["sonuc"] == "zaman").mean() * 100,
         "beklenen_r": r.mean(),
+        "r_std_hata": r.std() / np.sqrt(n) if n > 1 else np.nan,
         "ort_getiri_pct": bitti["getiri"].mean() * 100,
         "kar_faktoru": kazanc / kayip if kayip > 0 else np.inf,
         "hedef_medyan_gun": hedef_gun.median() if len(hedef_gun) else np.nan,

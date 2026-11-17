@@ -153,3 +153,22 @@ def test_islemler_skips_warmup_and_maps_dates():
     assert list(t["tarih"]) == [idx[3]]
     assert t["giris_tarihi"].iloc[0] == idx[4]
     assert t["sonuc"].iloc[0] == "zaman"
+
+
+def test_delayed_entry_keeps_signal_levels_and_date():
+    idx = pd.bdate_range("2025-01-01", periods=6)
+    df = pd.DataFrame({
+        "Open":  [100, 101, 104, 104, 104, 104],
+        "High":  [100, 102, 105, 111, 105, 105],
+        "Low":   [100, 100, 103, 103, 103, 103],
+        "Close": [100, 101, 104, 104, 104, 104],
+    }, index=idx, dtype=float)
+    sinyal = pd.Series([True, False, False, False, False, False], index=idx)
+    t = ev.islemler_gecikmeli(df, sinyal, pd.Series(95.0, index=idx), pd.Series(110.0, index=idx),
+                              Kurallar(timeout=4, cost=0.0), kod="X")
+    satir = t.iloc[0]
+    assert satir["tarih"] == idx[0]                 # dönem asıl sinyal tarihine göre
+    assert satir["giris_tarihi"] == idx[2]          # 1 bar gecikmeli giriş
+    assert satir["giris"] == 104
+    assert (satir["sonuc"], satir["gun"]) == ("hedef", 3)  # asıl sinyalden 3 bar
+    assert satir["r"] == pytest.approx((110 - 104) / (104 - 95))

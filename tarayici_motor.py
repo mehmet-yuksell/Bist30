@@ -3,13 +3,26 @@ BIST Sinyal Tarayıcı — hesaplama motoru
 Bluetsman Alım/Sat v2 mantığının Python versiyonu.
 Arayüzden bağımsızdır: veri alır, gösterge ve sinyal hesaplar, geçmiş isabet testi yapar.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
 
 # ════════════════════════════ AYARLAR ════════════════════════════
+@dataclass
+class AlimFiltreleri:
+    """AL sinyaline eklenen kalite filtreleri (docs/sistem_raporu.md, Aşama 2).
+
+    Skoru ve AL sütununu değiştirmez; sonuç AL_filtreli sütunundadır. Yalnızca geçmiş
+    testte kabul şartlarını sağlayan filtreler açıktır. None olan filtre kullanılmaz.
+    """
+    aktif: bool = False
+    piyasa_ema: int | None = None        # F1: XU100 günlük kapanışı bu günlük EMA'nın üstünde
+    uzun_trend_ema: int | None = None    # F5: hisse günlük kapanışı bu günlük EMA'nın üstünde
+    tavan_esik: float | None = None      # F8: sinyal günü yükselişi bu oranın altında
+
+
 @dataclass
 class VadeAyari:
     ad: str
@@ -34,8 +47,11 @@ class VadeAyari:
     # Test
     test_bar: int                # sinyalden sonra kaç bara bakılacak
     test_yuzde: float            # isabet için gereken hareket (%)
+    # Alım kalite filtreleri (kapalıysa AL_filtreli = AL)
+    filtreler: AlimFiltreleri = field(default_factory=AlimFiltreleri)
 
 
+# Kısa vadede hiçbir filtre kabul şartlarını sağlamadı (Aşama 2); filtre yok.
 KISA_VADE = VadeAyari(
     ad="Kısa vade (günlük grafik)",
     hizli_ema=13, yavas_ema=34, kesisim_gecerlilik=3, st_carpan_alim=3.0, min_skor=60,
@@ -52,6 +68,8 @@ ORTA_VADE = VadeAyari(
     kisa_ema=5, orta_ema=13, uzun_ema=30, st_carpan_satis=2.5, kar_al_min=40, sat_min=61,
     stop_atr=2.0, risk_odul=2.0,
     test_bar=8, test_yuzde=8.0,
+    # Aşama 2'de iki dönemde de beklenen getiriyi artıran filtreler (etkileri küçük; rapora bakın)
+    filtreler=AlimFiltreleri(aktif=True, piyasa_ema=100, uzun_trend_ema=300, tavan_esik=0.085),
 )
 
 
@@ -226,13 +244,52 @@ def sinyalleri_hesapla(df: pd.DataFrame, ayar: VadeAyari, trend_ok: pd.Series | 
     return df
 
 
-def hisse_analiz(df_gunluk: pd.DataFrame, ayar: VadeAyari) -> pd.DataFrame:
-    """Vadeye göre doğru zaman dilimini seçip sinyalleri hesaplar."""
+def _gunluk_hizala(seri: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
+    """Günlük seriyi hedef indekse 'o tarihte ya da öncesinde bilinen son değer' ile taşır."""
+    return seri.reindex(seri.index.union(index)).ffill().reindex(index)
+
+
+def alim_filtreleri_uygula(sonuc: pd.DataFrame, df_gunluk: pd.DataFrame,
+                           endeks: pd.DataFrame | None, f: AlimFiltreleri) -> pd.DataFrame:
+    """AL_filtreli sütununu ekler. Koşullar günlük veriyle, yalnızca geçmişe bakarak hesaplanır;
+    haftalık sonuçta haftanın son işlem gününün değeri kullanılır."""
+    sonuc = sonuc.copy()
+    gecti = pd.Series(True, index=sonuc.index)
+    if f.aktif:
+        c = df_gunluk["Close"]
+        if f.piyasa_ema:
+            if endeks is None:
+                raise ValueError("Piyasa rejimi filtresi için endeks (XU100) verisi gerekir.")
+            xu = endeks["Close"]
+            ust = (xu > ema(xu, f.piyasa_ema)).astype(float)
+            sonuc["F_piyasa"] = _gunluk_hizala(ust, sonuc.index).fillna(0).astype(bool)
+            gecti &= sonuc["F_piyasa"]
+        if f.uzun_trend_ema:
+            ust = (c > ema(c, f.uzun_trend_ema)).astype(float)
+            sonuc["F_uzun_trend"] = _gunluk_hizala(ust, sonuc.index).fillna(0).astype(bool)
+            gecti &= sonuc["F_uzun_trend"]
+        if f.tavan_esik is not None:
+            alt = (c / c.shift() - 1 < f.tavan_esik).astype(float)
+            sonuc["F_tavan"] = _gunluk_hizala(alt, sonuc.index).fillna(0).astype(bool)
+            gecti &= sonuc["F_tavan"]
+    sonuc["AL_filtreli"] = sonuc["AL"] & gecti
+    return sonuc
+
+
+def hisse_analiz(df_gunluk: pd.DataFrame, ayar: VadeAyari, endeks: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Vadeye göre doğru zaman dilimini seçip sinyalleri hesaplar.
+
+    Vadenin alım filtreleri açıksa AL_filtreli sütunu eklenir (endeks = XU100 günlük verisi).
+    """
     if ayar.trend_filtre == "haftalik":
         trend = haftalik_trend_gunluge(df_gunluk, ayar.trend_ema)
-        return sinyalleri_hesapla(df_gunluk, ayar, trend)
-    df_h = haftaliga_cevir(df_gunluk)
-    return sinyalleri_hesapla(df_h, ayar)
+        sonuc = sinyalleri_hesapla(df_gunluk, ayar, trend)
+    else:
+        sonuc = sinyalleri_hesapla(haftaliga_cevir(df_gunluk), ayar)
+    if not ayar.filtreler.aktif:
+        sonuc["AL_filtreli"] = sonuc["AL"]
+        return sonuc
+    return alim_filtreleri_uygula(sonuc, df_gunluk, endeks, ayar.filtreler)
 
 
 # ════════════════════════════ SKOR KIRILIMI ════════════════════════════
@@ -294,14 +351,14 @@ def son_sinyal(df: pd.DataFrame, sutun: str, son_bar: int):
     return satir, kac_bar_once
 
 
-def tara(veriler: dict[str, pd.DataFrame], ayar: VadeAyari, son_bar: int):
+def tara(veriler: dict[str, pd.DataFrame], ayar: VadeAyari, son_bar: int, endeks: pd.DataFrame | None = None):
     """Tüm hisseleri tarar. Alım ve satış listelerini + her hissenin analiz tablosunu döndürür."""
     alimlar, satislar, analizler = [], [], {}
     for kod, df in veriler.items():
         if df is None or len(df) < 120:
             continue
         try:
-            sonuc = hisse_analiz(df, ayar)
+            sonuc = hisse_analiz(df, ayar, endeks)
         except Exception:
             continue
         analizler[kod] = sonuc
