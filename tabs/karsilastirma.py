@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from data import DataFetchError, get_price_history, load_all_bist_symbols
+from tarayici_motor import haftaliga_cevir
 from ui import charts
 from ui import theme as t
 from ui.components import callout, error_state, legend, rank_list, section_title, skeleton_html
@@ -23,6 +24,7 @@ from ui_text import (
     KR_RANK_TITLE,
     KR_RETURN_TITLE,
     KR_TICKERS_LABEL,
+    KR_WEEKLY_NOTE,
     SYMBOL_HELP,
     SYMBOL_PLACEHOLDER,
 )
@@ -94,6 +96,10 @@ def render(device: str, ctx: dict) -> None:
     if failures:
         callout("warn", None, failures)
     ctx["last_dates"].append(max(histories[ticker].index[-1] for ticker in valid_tickers))
+    if ctx.get("vade") == "orta":
+        # Orta vadede getiri ve korelasyon haftalık kapanışlarla (motorla aynı W-FRI haftaları)
+        histories = {t: haftaliga_cevir(histories[t][["Open", "High", "Low", "Close", "Volume"]]) for t in valid_tickers}
+        st.caption(KR_WEEKLY_NOTE)
 
     # Renk, hissenin seçim sırasını izler (sıralamaya göre değişmez).
     colors = {ticker: t.SERIES[i % len(t.SERIES)] for i, ticker in enumerate(valid_tickers)}

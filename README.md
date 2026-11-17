@@ -57,7 +57,15 @@ Hisse Detay sekmesinin içinde, üç basit teknik sinyalin **geçmiş performans
 - Getiri eğrileri karşılaştırması; fiyat grafiğinde işaretlenmiş giriş/çıkış noktaları
 - İşlem sayısı 10'un altındaysa "örnek sayısı yetersiz" uyarısı
 
+### 🗓️ Vade seçimi
+- Sayfanın üstünde **Kısa vade (günlük)** / **Orta vade (haftalık)**; tüm sekmelerde geçerli, oturum boyunca korunur
+- Orta vadede grafik haftalık mumlarla çizilir; bu haftanın mumu cuma kapanışına kadar kesinleşmez (ön sinyal)
+
 ### 🔍 BIST 100 Tarama (açılış sekmesi)
+- Bölümler: **Bugünün Alım Sinyalleri** (not ve tarihsel isabet), **Bugünün Satış Uyarıları** (SAT, KAR AL, ÇIK),
+  **⚡ Fırsat Düşüşleri** (ve dönüş bekleyenler), **⚠️ Düşen Bıçak Riski**; her bölümün altında geçmiş testteki
+  başarısı yazılır (olumsuzsa da)
+- Tabloda kısa ve orta vade için ayrı skor ve sinyal sütunları
 - **Bugünün Alım Sinyalleri:** son işlem gününde alım sinyali veren hisseler, alım skoruna göre
   kartlar halinde (kod, şirket, skor, fiyat, günlük değişim, stop, hedef, RSI, hacim katı).
   Bugün sinyal yoksa son 5 işlem günündeki sinyaller (kaç gün önce, sinyal fiyatı, sinyalden bu
@@ -181,6 +189,7 @@ filtreler.py        Alım sinyali kalite filtreleri F1-F8
 firsat.py           FIRSAT sistemi (sert düşüş sonrası toparlanma) ve düşen bıçak elemesi
 portfoy.py          Portföy simülasyonu (pozisyon büyüklüğü, risk, rejim) ve metrikler
 kalite.py           Sinyal kalitesi notu (geçmiş performansa göre A/B/C, TEST doğrulaması)
+panel_veri.py       Panel listeleri: iki vadenin sinyalleri, satış uyarıları, fırsat ve bıçak durumu
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)

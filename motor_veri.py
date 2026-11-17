@@ -81,8 +81,8 @@ def skor_kirilimi(df: pd.DataFrame) -> pd.Series:
     return motor.alim_skor_kalemleri(motor_girdisi(df), AYAR).iloc[-1]
 
 
-def al_sinyalleri(sonuc: pd.DataFrame, son_bar: int) -> list[dict]:
-    """Son `son_bar` işlem günündeki tüm AL sinyalleri, en yeni önce.
+def al_sinyalleri(sonuc: pd.DataFrame, son_bar: int, sutun: str = "AL") -> list[dict]:
+    """Son `son_bar` barındaki tüm AL sinyalleri (`sutun`: AL ya da AL_filtreli), en yeni önce.
 
     Her biri: once (kaç işlem günü önce, 0 = son gün), tarih, skor, fiyat (sinyal kapanışı),
     stop, hedef, degisim (sinyal kapanışından son kapanışa %).
@@ -90,7 +90,7 @@ def al_sinyalleri(sonuc: pd.DataFrame, son_bar: int) -> list[dict]:
     son_kapanis = float(sonuc["Close"].iloc[-1])
     pencere = sonuc.iloc[-son_bar:]
     sinyaller = []
-    for tarih, satir in pencere[pencere["AL"].astype(bool)].iloc[::-1].iterrows():
+    for tarih, satir in pencere[pencere[sutun].astype(bool)].iloc[::-1].iterrows():
         sinyaller.append({
             "once": len(sonuc) - 1 - sonuc.index.get_loc(tarih),
             "tarih": tarih,
@@ -103,19 +103,19 @@ def al_sinyalleri(sonuc: pd.DataFrame, son_bar: int) -> list[dict]:
     return sinyaller
 
 
-def son_al(sonuc: pd.DataFrame, son_bar: int) -> dict | None:
-    """Son `son_bar` işlem günündeki en yeni AL sinyali (motor.son_sinyal ile aynı seçim)."""
-    sinyaller = al_sinyalleri(sonuc, son_bar)
+def son_al(sonuc: pd.DataFrame, son_bar: int, sutun: str = "AL") -> dict | None:
+    """Son `son_bar` barındaki en yeni AL sinyali (motor.son_sinyal ile aynı seçim)."""
+    sinyaller = al_sinyalleri(sonuc, son_bar, sutun)
     return sinyaller[0] if sinyaller else None
 
 
-def al_gecmisi(sonuc: pd.DataFrame, horizon: int = 10) -> pd.DataFrame:
+def al_gecmisi(sonuc: pd.DataFrame, horizon: int = 10, sutun: str = "AL") -> pd.DataFrame:
     """Tüm AL sinyalleri (en yeni üstte): skor, kapanış, stop, hedef ve `horizon` gün sonraki getiri.
 
     Henüz `horizon` işlem günü geçmemiş sinyallerde getiri NaN'dır.
     """
     forward = (sonuc["Close"].shift(-horizon) / sonuc["Close"] - 1) * 100
-    hits = sonuc["AL"].astype(bool)
+    hits = sonuc[sutun].astype(bool)
     return pd.DataFrame({
         "score": sonuc.loc[hits, "Alim_skor"],
         "close": sonuc.loc[hits, "Close"],

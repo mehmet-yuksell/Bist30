@@ -21,6 +21,7 @@ from ui_text import (
     BT_ENTRY,
     BT_EXIT,
     CHART_BL_SIGNAL,
+    CHART_FIRSAT,
     CHART_PANEL_MACD,
     CHART_PANEL_RSI,
     CHART_PANEL_VOLUME,
@@ -34,6 +35,7 @@ from ui_text import (
     CHART_SERIES_SIGNAL,
     CHART_SERIES_SMA200,
     CHART_SERIES_SMA50,
+    CHART_SELL,
 )
 
 DETAIL_HEIGHT = {MOBILE: 620, TABLET: 700, DESKTOP: 760}
@@ -169,12 +171,16 @@ def _line(x, y, name: str, color: str, width: float = 1.6, fmt: str = ",.2f", **
 
 def build_detail_figure(df: pd.DataFrame, overlays: dict, rsi_series: pd.Series,
                         macd_df: pd.DataFrame, currency_label: str, device: str,
-                        signal_scores: pd.Series | None = None) -> go.Figure:
+                        signal_scores: pd.Series | None = None,
+                        sell_points: pd.Series | None = None,
+                        firsat_points: pd.Index | None = None) -> go.Figure:
     """Mum + hacim + RSI + MACD. `df` ve seriler, gösterilecek pencereye zaten kırpılmış olmalı.
 
     overlays: {"sma50": Series|None, "sma200": ..., "ema20": ..., "bl_fast": ..., "bl_slow": ...,
     "bollinger": DataFrame|None}
-    signal_scores: Bluetsman alım sinyali günlerinin skoru (indeks = tarih); mumun altında üçgen.
+    signal_scores: alım sinyali barlarının skoru (indeks = tarih); mumun altında mavi üçgen.
+    sell_points: satış sinyali barları ve türü ('SAT', 'KAR AL', 'ÇIK'); mumun üstünde kırmızı üçgen.
+    firsat_points: FIRSAT sinyali günleri; mumun altında sarı baklava.
     """
     fig = make_subplots(
         rows=4, cols=1, shared_xaxes=True,
@@ -224,6 +230,30 @@ def build_detail_figure(df: pd.DataFrame, overlays: dict, rsi_series: pd.Series,
                             color=OVERLAY_COLORS["bl_signal"], line=dict(color=t.BG, width=1)),
                 customdata=signal_scores.round().to_numpy(),
                 hovertemplate=f"{CHART_BL_SIGNAL} · Skor %{{customdata:.0f}}<extra></extra>",
+            ),
+            row=1, col=1,
+        )
+
+    span = (df["High"].max() - df["Low"].min()) or 1.0
+    marker_size = 10 if device == MOBILE else 12
+    if sell_points is not None and len(sell_points):
+        fig.add_trace(
+            go.Scatter(
+                x=sell_points.index, y=df["High"].reindex(sell_points.index) + span * 0.03,
+                mode="markers", name=CHART_SELL,
+                marker=dict(symbol="triangle-down", size=marker_size, color=t.DOWN, line=dict(color=t.BG, width=1)),
+                customdata=sell_points.to_numpy(),
+                hovertemplate="%{customdata}<extra></extra>",
+            ),
+            row=1, col=1,
+        )
+    if firsat_points is not None and len(firsat_points):
+        fig.add_trace(
+            go.Scatter(
+                x=firsat_points, y=df["Low"].reindex(firsat_points) - span * 0.06,
+                mode="markers", name=CHART_FIRSAT,
+                marker=dict(symbol="diamond", size=marker_size, color=t.WARN, line=dict(color=t.BG, width=1)),
+                hovertemplate=f"{CHART_FIRSAT}<extra></extra>",
             ),
             row=1, col=1,
         )
@@ -380,4 +410,17 @@ def build_performance_figure(series: dict[str, pd.Series], styles: dict, device:
         fig.update_yaxes(ticksuffix="%")
     _base_layout(fig, device, LINE_HEIGHT[device])
     _date_axes(fig)
+    return fig
+
+
+def build_histogram_figure(counts: dict[int, int], axis_title: str, device: str) -> go.Figure:
+    """Hedefe ulaşma süresi dağılımı: {gün/hafta: sinyal sayısı}."""
+    xs = sorted(counts)
+    fig = go.Figure(go.Bar(
+        x=xs, y=[counts[x] for x in xs], marker_color=t.ACCENT_TEXT, marker_line_width=0, opacity=0.85,
+        hovertemplate="%{x}: %{y} sinyal<extra></extra>",
+    ))
+    _base_layout(fig, device, TRADES_HEIGHT[device], hovermode="closest")
+    fig.update_xaxes(title=dict(text=axis_title, font=dict(size=11, color=t.TEXT_3)), dtick=1 if len(xs) <= 25 else None)
+    fig.update_yaxes(title=None, rangemode="tozero")
     return fig

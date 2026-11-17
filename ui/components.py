@@ -370,29 +370,48 @@ def signal_cards(cards: list[dict]) -> None:
     """Bugünün AL sinyali kartları.
 
     Her kart: ticker, name, score, price, change (%), badge (str | None), rows [(etiket, değer)],
-    isteğe bağlı grade ('A'|'B'|'C'), grade_label ('Not A') ve stats (tarihsel istatistik cümlesi).
+    isteğe bağlı grade ('A'|'B'|'C'), grade_label ('Not A'), stats (tarihsel istatistik cümlesi),
+    color (skor rengi; verilmezse alım skoru renk eşikleri), badge_tone ve score_text (sayı yerine).
     """
     html_cards = []
     for card in cards:
-        color = score_color(card["score"])
-        badge_html = badge(card["badge"], "warn") if card.get("badge") else ""
+        color = card.get("color") or score_color(card["score"])
+        badge_html = badge(card["badge"], card.get("badge_tone", "warn")) if card.get("badge") else ""
         badge_html += " " + grade_badge(card.get("grade"), card.get("grade_label", ""))
         kv = "".join(
             f'<div class="ui-kv"><span>{escape(label)}</span><b>{escape(value)}</b></div>'
             for label, value in card["rows"]
         )
         stats = f'<p class="ui-signal-card-stats">{escape(card["stats"])}</p>' if card.get("stats") else ""
+        score_text = card.get("score_text") or f"{card['score']:.0f}"
         html_cards.append(
             '<article class="ui-card ui-signal-card" role="listitem">'
             '<div class="ui-signal-card-top">'
             f'<div class="ui-signal-card-id"><div class="ui-list-ticker">{escape(card["ticker"])} {badge_html}</div>'
             f'<div class="ui-list-name">{escape(card["name"])}</div></div>'
-            f'<div class="ui-signal-card-score num" style="color:{color}">{card["score"]:.0f}</div></div>'
+            f'<div class="ui-signal-card-score num" style="color:{color}">{escape(score_text)}</div></div>'
             f'<div class="ui-signal-card-price"><span class="num">{escape(card["price"])}</span>'
             f"{change_badge(card['change'])}</div>"
             f"{_bar(card['score'] / 100, color)}{kv}{stats}</article>"
         )
     render(f'<div class="ui-signal-cards" role="list">{"".join(html_cards)}</div>')
+
+
+def tagged_list(rows: list[dict]) -> None:
+    """Etiketli kompakt liste. Her satır: ticker, name, tags [(metin, ton)], meta, isteğe bağlı change (%)."""
+    def side(row: dict) -> str:
+        return f'<div class="ui-list-side">{change_badge(row["change"])}</div>' if row.get("change") is not None else ""
+
+    html_rows = "".join(
+        '<div class="ui-list-row" role="listitem">'
+        f'<div class="ui-list-main"><div class="ui-list-ticker">{escape(row["ticker"])} '
+        + " ".join(badge(text, tone) for text, tone in row.get("tags", []))
+        + f'</div><div class="ui-list-name">{escape(row["name"])}</div>'
+        f'<div class="ui-list-meta ui-wrap">{escape(row.get("meta", ""))}</div></div>'
+        f"{side(row)}</div>"
+        for row in rows
+    )
+    render(f'<div class="ui-list ui-list-auto" role="list">{html_rows}</div>')
 
 
 def recent_signal_list(rows: list[dict]) -> None:

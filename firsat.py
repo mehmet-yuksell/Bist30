@@ -138,10 +138,11 @@ def firsat_hesapla(df: pd.DataFrame, endeks: pd.DataFrame | None = None,
     Sütunlar: kurulum, bolum_basi (yeni düşüş bölümünün ilk kurulum günü), tetik (dönüş günü,
     elemeden önce), BICAK (tetik var ama düşen bıçak elemesi), FIRSAT (tetik ve eleme yok),
     BICAK_RISKI (kurulum penceresinde ve en az bir bıçak kriteri görülmüş; panel listesi),
+    kurulum_penceresi (düşüş bölümü açık, dönüş bekleniyor ya da bugün tetiklendi),
     K1-K4 (bölüm başından o güne kadar görülen), uyarılar, Stop, ATR, EMA_hedef, RSI2.
     """
     k = gunluk_kosullar(df, endeks, ayar)
-    c, h, lo = df["Close"].to_numpy(), df["High"].to_numpy(), df["Low"].to_numpy()
+    c, h = df["Close"].to_numpy(), df["High"].to_numpy()
     kurulum = k["kurulum"].to_numpy()
     kriter = {key: k[key].to_numpy() for key in BICAK_KRITERLERI}
     n = len(df)
@@ -185,6 +186,7 @@ def firsat_hesapla(df: pd.DataFrame, endeks: pd.DataFrame | None = None,
     out["BICAK"] = tetik & herhangi
     out["FIRSAT"] = tetik & ~herhangi
     out["BICAK_RISKI"] = pencerede & herhangi
+    out["kurulum_penceresi"] = pencerede
     out["uyari_hisseye_ozel"] = k["uyari_hisseye_ozel"].fillna(False).to_numpy(dtype=bool)
     out["uyari_piyasa"] = k["uyari_piyasa"].fillna(False).to_numpy(dtype=bool)
     out["ATR"] = k["ATR"]

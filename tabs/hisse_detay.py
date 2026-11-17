@@ -5,9 +5,11 @@ from datetime import timedelta
 import pandas as pd
 import streamlit as st
 
+import evaluation as ev
 import feed
 import market
 import motor_veri
+import panel_veri as pv
 import tarayici_motor as motor
 from backtest import run_buy_and_hold, run_macd_strategy, run_rsi_strategy, run_sma_cross_strategy
 from data import (
@@ -64,6 +66,16 @@ from ui_text import (
     BADGE_SMA_ABOVE,
     BADGE_SMA_BELOW,
     BL_CAPTION,
+    BL_CAPTION_ORTA,
+    BL_COL_FORWARD_ORTA,
+    BL_GATES_ORTA,
+    BL_HISTORY_CAPTION_ORTA,
+    BL_LAST_SELL,
+    BL_NO_SELL,
+    BL_SELL_PRESSURE,
+    BL_STATUS_NONE_ORTA,
+    BL_STATUS_RECENT_ORTA,
+    BL_STATUS_TODAY_ORTA,
     BL_COL_CLOSE,
     BL_COL_DATE,
     BL_COL_FORWARD,
@@ -104,6 +116,8 @@ from ui_text import (
     BT_TRADES_TITLE,
     BT_WIN_RATE,
     CHART_BL_SIGNAL,
+    CHART_FIRSAT,
+    CHART_SELL,
     CHART_SERIES_BL_FAST,
     CHART_SERIES_BL_SLOW,
     CHART_SERIES_BOLLINGER,
@@ -118,6 +132,14 @@ from ui_text import (
     HD_EMPTY_BODY,
     HD_EMPTY_TITLE,
     HD_FX_ALIGN_FAILED,
+    HD_NO_INDEX,
+    HD_WEEKLY_INDICATORS,
+    HS_GENERAL,
+    HS_HIST_AXIS,
+    HS_HIST_TITLE,
+    HS_NO_TARGETS,
+    HS_OWN,
+    HS_TITLE,
     HD_INDICATOR_BLUETSMAN,
     HD_INDICATOR_OPTIONS,
     HD_INDICATORS_LABEL,
@@ -140,6 +162,10 @@ from ui_text import (
     SUMMARY_TITLE,
     SYMBOL_HELP,
     SYMBOL_PLACEHOLDER,
+    VADE_BIRIM,
+    VADE_BUGUN,
+    VADE_ONCE,
+    VADE_WEEK_NOTE,
 )
 
 CURRENCY_KEY = "hisse_detay_currency"
@@ -148,6 +174,8 @@ MIN_BACKTEST_ROWS = 210
 MACD_CROSS_LOOKBACK = 5  # signals.describe_macd_cross ile aynı
 SMA_CROSS_LOOKBACK = 10  # signals.describe_golden_death_cross ile aynı
 SIGNAL_LOOKBACK = 10  # BIST 100 Tarama ile aynı
+MIN_HISSE_SINYALI = 15  # bundan azsa hisse yerine genel istatistik
+ENDEKS = "XU100"
 HISTORY_ROWS = 10
 
 
@@ -284,8 +312,9 @@ def _render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
 # Bluetsman alım sistemi
 # ---------------------------------------------------------------------------
 
-def _render_signal_history(sonuc: pd.DataFrame) -> None:
-    history = motor_veri.al_gecmisi(sonuc)
+def _render_signal_history(sonuc: pd.DataFrame, vade: str) -> None:
+    history = motor_veri.al_gecmisi(sonuc, sutun=pv.ALIM_SUTUNU)
+    col_forward = BL_COL_FORWARD if vade == pv.KISA else BL_COL_FORWARD_ORTA
     with st.expander(BL_HISTORY_TITLE, icon=":material/history:"):
         if history.empty:
             callout("empty", None, BL_HISTORY_EMPTY)
@@ -305,7 +334,7 @@ def _render_signal_history(sonuc: pd.DataFrame) -> None:
             BL_COL_CLOSE: [fmt_num(v, 2) for v in recent["close"]],
             BL_COL_STOP: [fmt_num(v, 2) for v in recent["stop"]],
             BL_COL_TARGET: [fmt_num(v, 2) for v in recent["target"]],
-            BL_COL_FORWARD: ["—" if pd.isna(v) else f"{arrow(v)} {fmt_pct(v)}" for v in forward],
+            col_forward: ["—" if pd.isna(v) else f"{arrow(v)} {fmt_pct(v)}" for v in forward],
         })
         forward_colors = [
             f"color: {({'up': t.UP, 'down': t.DOWN_TEXT}).get(direction(v), t.TEXT_3)}; font-weight: 600"
@@ -313,56 +342,119 @@ def _render_signal_history(sonuc: pd.DataFrame) -> None:
         ]
 
         st.dataframe(
-            table.style.apply(lambda _: forward_colors, subset=[BL_COL_FORWARD]),
+            table.style.apply(lambda _: forward_colors, subset=[col_forward]),
             hide_index=True, width="stretch",
         )
-        st.caption(BL_HISTORY_CAPTION)
+        st.caption(BL_HISTORY_CAPTION if vade == pv.KISA else BL_HISTORY_CAPTION_ORTA)
 
 
 def _mark(ok: bool) -> str:
     return "✓" if ok else "✗"
 
 
-def _render_alim_sistemi(df_tl: pd.DataFrame, sonuc: pd.DataFrame | None) -> None:
-    section_title(BL_TITLE, BL_CAPTION)
+def _skor_kalemleri(df_tl: pd.DataFrame, vade: str) -> pd.Series:
+    """Son barın alım skoru kalemleri (orta vadede haftalık bar; motor.hisse_analiz ile aynı girdi)."""
+    girdi = motor_veri.motor_girdisi(df_tl)
+    if vade == pv.KISA:
+        return motor.alim_skor_kalemleri(girdi, motor.KISA_VADE).iloc[-1]
+    return motor.alim_skor_kalemleri(motor.haftaliga_cevir(girdi), motor.ORTA_VADE).iloc[-1]
+
+
+def _kapilar(df_tl: pd.DataFrame, sonuc: pd.DataFrame, kalemler: pd.Series, vade: str, score: float) -> str:
+    """Alım sinyali için gereken koşulların bugünkü durumu (✓/✗)."""
+    ayar = pv.VADE_AYARI[vade]
+    ortak = {"cross": _mark(kalemler["kesisim"] > 0), "price": _mark(kalemler["fiyat_ema"] > 0),
+             "min_score": ayar.min_skor, "score": _mark(score >= ayar.min_skor)}
+    if vade == pv.KISA:
+        girdi = motor_veri.motor_girdisi(df_tl)
+        weekly_up = bool(motor.haftalik_trend_gunluge(girdi, ayar.trend_ema).iloc[-1])
+        return BL_GATES.format(weekly=_mark(weekly_up), **ortak)
+    last = sonuc.iloc[-1]
+    trend = bool(sonuc["Close"].iloc[-1] > motor.ema(sonuc["Close"], ayar.trend_ema).iloc[-1])
+    return BL_GATES_ORTA.format(trend=_mark(trend), f1=_mark(bool(last.get("F_piyasa", True))),
+                                f5=_mark(bool(last.get("F_uzun_trend", True))), f8=_mark(bool(last.get("F_tavan", True))),
+                                **ortak)
+
+
+def _satis_satiri(sonuc: pd.DataFrame, vade: str) -> str:
+    ayar = pv.VADE_AYARI[vade]
+    baski = BL_SELL_PRESSURE.format(skor=fmt_num(sonuc["Satis_skor"].iloc[-1], 0),
+                                    kar=ayar.kar_al_min, sat=ayar.sat_min)
+    son = pv.son_satis(sonuc, SIGNAL_LOOKBACK)
+    if son:
+        once = VADE_BUGUN[vade] if son["once"] == 0 else VADE_ONCE[vade].format(days=son["once"])
+        return f"{baski} · {BL_LAST_SELL.format(ad=son['ad'], once=once.lower())}"
+    return f"{baski} · {BL_NO_SELL.format(n=SIGNAL_LOOKBACK)}"
+
+
+def _render_alim_sistemi(df_tl: pd.DataFrame, sonuc: pd.DataFrame | None, vade: str, hafta_yarim: bool,
+                         device: str) -> None:
+    section_title(BL_TITLE, BL_CAPTION if vade == pv.KISA else BL_CAPTION_ORTA)
     if sonuc is None:
         callout("info", None, BL_STATUS_NO_DATA)
         return
 
     last = sonuc.iloc[-1]
     score = float(last["Alim_skor"])
-    signal = motor_veri.son_al(sonuc, SIGNAL_LOOKBACK)
-    provisional = market.provisional(market.now(), sonuc.index[-1].date())
+    signal = motor_veri.son_al(sonuc, SIGNAL_LOOKBACK, sutun=pv.ALIM_SUTUNU)
+    gun_kesin_degil = market.provisional(market.now(), df_tl.index[-1].date())
     if signal and signal["once"] == 0:
-        template = BL_STATUS_TODAY_PROVISIONAL if provisional else BL_STATUS_TODAY
-        title = template.format(score=round(signal["skor"]))
+        if vade == pv.ORTA and hafta_yarim:
+            title = BL_STATUS_TODAY_ORTA.format(score=round(signal["skor"]))
+        else:
+            template = BL_STATUS_TODAY_PROVISIONAL if gun_kesin_degil else BL_STATUS_TODAY
+            title = template.format(score=round(signal["skor"]))
     elif signal:
-        title = BL_STATUS_RECENT.format(
-            days=signal["once"], date=fmt_date(signal["tarih"]), score=round(signal["skor"]),
-        )
+        template = BL_STATUS_RECENT if vade == pv.KISA else BL_STATUS_RECENT_ORTA
+        title = template.format(days=signal["once"], date=fmt_date(signal["tarih"]), score=round(signal["skor"]))
     else:
-        title = BL_STATUS_NONE.format(days=SIGNAL_LOOKBACK)
+        title = (BL_STATUS_NONE if vade == pv.KISA else BL_STATUS_NONE_ORTA).format(days=SIGNAL_LOOKBACK)
 
-    kalemler = motor_veri.skor_kirilimi(df_tl)
-    weekly_up = bool(motor.haftalik_trend_gunluge(motor_veri.motor_girdisi(df_tl), motor_veri.AYAR.trend_ema).iloc[-1])
-    gates = BL_GATES.format(
-        cross=_mark(kalemler["kesisim"] > 0),
-        price=_mark(kalemler["fiyat_ema"] > 0),
-        weekly=_mark(weekly_up),
-        min_score=motor_veri.AYAR.min_skor,
-        score=_mark(score >= motor_veri.AYAR.min_skor),
-    )
+    kalemler = _skor_kalemleri(df_tl, vade)
     levels = BL_SIGNAL_LEVELS.format(stop=fmt_num(signal["stop"], 2), target=fmt_num(signal["hedef"], 2)) if signal else ""
-    kq = kalite_ui.ozet(signal["skor"]) if signal else {"label": "", "stats": None}
+    kq = (kalite_ui.ozet(signal["skor"], vade, True if vade == pv.ORTA else None) if signal
+          else {"label": "", "stats": None})
     kalite_satiri = " · ".join(x for x in (kq["label"], kq["stats"]) if x)
     score_card(
         title=title,
-        subtitle_lines=[gates, levels, kalite_satiri],
+        subtitle_lines=[_kapilar(df_tl, sonuc, kalemler, vade, score), _satis_satiri(sonuc, vade), levels, kalite_satiri],
         score=score,
         score_label=BL_SCORE_LABEL,
         items=[(BL_ITEM_LABELS[k], float(kalemler[k]), m) for k, m in motor.ALIM_KALEMLERI.items()],
     )
-    _render_signal_history(sonuc)
+    _render_signal_history(sonuc, vade)
+    _render_hisse_istatistigi(sonuc, vade, device)
+
+
+def _render_hisse_istatistigi(sonuc: pd.DataFrame, vade: str, device: str) -> None:
+    """Bu hissenin alım sinyallerinin sonucu ve hedefe ulaşma süresi histogramı.
+
+    Değerlendirme raporla aynı kurallardır (ertesi bar açılışı giriş, stop/hedef/zaman aşımı);
+    hissede 15'ten az tamamlanmış sinyal varsa BIST 100 genelinin istatistiği gösterilir.
+    """
+    timeout, ilk_bar = (20, motor_veri.MIN_BARS) if vade == pv.KISA else (12, 52)
+    trades = ev.islemler(sonuc, sonuc[pv.ALIM_SUTUNU], sonuc["Stop"], sonuc["Hedef"],
+                         ev.Kurallar(timeout=timeout), ilk_bar=ilk_bar)
+    kendi = pv.islem_istatistigi(trades)
+    subtitle(HS_TITLE)
+    if kendi["sinyal"] >= MIN_HISSE_SINYALI:
+        st.caption(HS_OWN.format(n=kendi["sinyal"], hit=fmt_num(kendi["hedef_pct"], 0),
+                                 stop=fmt_num(kendi["stop_pct"], 0), r=fmt_num(kendi["beklenen_r"], 2)))
+        sayilar = pd.Series(kendi["hedef_gunleri"]).value_counts().to_dict()
+    else:
+        genel = kalite_ui.kalibrasyon().get("genel", {}).get(vade, {})
+        if not genel.get("sinyal"):
+            return
+        st.caption(HS_GENERAL.format(n=kendi["sinyal"], m=genel["sinyal"], hit=fmt_num(genel["hedef_pct"], 0),
+                                     stop=fmt_num(genel["stop_pct"], 0), r=fmt_num(genel["beklenen_r"], 2)))
+        sayilar = {int(k): v for k, v in genel.get("hedef_gunleri", {}).items()}
+    if not sayilar:
+        callout("empty", None, HS_NO_TARGETS)
+        return
+    st.caption(HS_HIST_TITLE[vade])
+    charts.show_chart(charts.build_histogram_figure({int(k): int(v) for k, v in sayilar.items()},
+                                                    HS_HIST_AXIS.format(birim=VADE_BIRIM[vade]), device),
+                      device, key="hd_hist")
 
 
 def _render_explanations(currency: str) -> None:
@@ -495,6 +587,7 @@ def _render_sinyal_karnesi_body(ticker: str, start_date, end_date, device: str) 
 # Seans boyunca 15 dakikada bir yalnızca bu sekme yeniden çalışır (seçimler korunur).
 @st.fragment(run_every=timedelta(minutes=market.REFRESH_MINUTES))
 def render(device: str, ctx: dict) -> None:
+    vade = ctx.get("vade", pv.KISA)
     all_stocks = load_all_bist_symbols()
     all_symbols = sorted(all_stocks.keys())
     default_ticker = "THYAO" if "THYAO" in all_stocks else all_symbols[0]
@@ -536,17 +629,27 @@ def render(device: str, ctx: dict) -> None:
     if data.stale:
         callout("warn", None, LIVE_STALE.format(minutes=data.age_minutes()))
 
+    # Alım sistemi her zaman TL ve temettü düzeltmeli fiyatla hesaplanır (motor_veri). Orta vadenin
+    # piyasa filtresi XU100 ister; endeks alınamazsa orta vade sinyalleri gösterilemez.
+    df_tl = df
+    endeks = None
+    try:
+        endeks = pv.endeks_girdisi(feed.single(ENDEKS, start_date, end_date).data)
+    except DataFetchError:
+        if vade == pv.ORTA:
+            callout("warn", None, HD_NO_INDEX)
+    sonuc = pv.analiz(df_tl, vade, endeks) if (vade == pv.KISA or endeks is not None) else None
+    fs = pv.firsat_analizi(df_tl, endeks) if vade == pv.KISA else None
+    hafta_yarim = vade == pv.ORTA and sonuc is not None and not pv.hafta_tamamlandi(df_tl.index[-1], sonuc.index[-1])
+
     # Para birimi anahtarı grafik araç çubuğunda durur; hero ondan önce çizildiği için
     # seçili değer oturum durumundan okunur (anahtara tıklamak sayfayı yeniden çalıştırır).
-    # Alım sistemi her zaman TL ve temettü düzeltmeli fiyatla hesaplanır (motor_veri).
-    df_tl = df
-    sonuc = motor_veri.analiz(df_tl)
-
     currency = st.session_state.get(CURRENCY_KEY) or "TL"
     currency_label = "TL"
     if currency == "USD":
         df, currency_label = _convert_to_usd(df, start_date, end_date)
 
+    # Hero ve Teknik Özet günlük; grafik orta vadede haftalık mumlardır.
     close = df["Close"]
     sma50_series = sma(close, 50)
     sma200_series = sma(close, 200)
@@ -566,25 +669,38 @@ def render(device: str, ctx: dict) -> None:
             default=[HD_INDICATOR_BLUETSMAN], key="hd_indicators",
         ) or []
 
-    mask = _window_mask(df.index, view)
+    grafik = df if vade == pv.KISA else motor.haftaliga_cevir(df[["Open", "High", "Low", "Close", "Volume"]])
+    if vade == pv.ORTA:
+        callout("info", None, HD_WEEKLY_INDICATORS + (" " + VADE_WEEK_NOTE if hafta_yarim else ""))
+    g_close = grafik["Close"]
+    ayar = pv.VADE_AYARI[vade]
+    mask = _window_mask(grafik.index, view)
     show_bluetsman = HD_INDICATOR_BLUETSMAN in indicators
     overlays = {
-        "sma50": sma50_series[mask] if "SMA 50" in indicators else None,
-        "sma200": sma200_series[mask] if "SMA 200" in indicators else None,
-        "ema20": ema(close, 20)[mask] if "EMA 20" in indicators else None,
-        "bollinger": bollinger_bands(close, 20)[mask] if "Bollinger" in indicators else None,
+        "sma50": sma(g_close, 50)[mask] if "SMA 50" in indicators else None,
+        "sma200": sma(g_close, 200)[mask] if "SMA 200" in indicators else None,
+        "ema20": ema(g_close, 20)[mask] if "EMA 20" in indicators else None,
+        "bollinger": bollinger_bands(g_close, 20)[mask] if "Bollinger" in indicators else None,
         # Dolar görünümünde EMA'lar dolar fiyatından çizilir; sinyal günleri TL hesabından gelir.
-        "bl_fast": ema(close, motor_veri.AYAR.hizli_ema)[mask] if show_bluetsman else None,
-        "bl_slow": ema(close, motor_veri.AYAR.yavas_ema)[mask] if show_bluetsman else None,
+        "bl_fast": ema(g_close, ayar.hizli_ema)[mask] if show_bluetsman else None,
+        "bl_slow": ema(g_close, ayar.yavas_ema)[mask] if show_bluetsman else None,
     }
-    signal_scores = None
+    signal_scores = sell_points = firsat_points = None
     if show_bluetsman and sonuc is not None:
-        visible = sonuc.reindex(df.index)[mask]
-        signal_scores = visible.loc[visible["AL"].eq(True), "Alim_skor"]
+        visible = sonuc.reindex(grafik.index)[mask]
+        signal_scores = visible.loc[visible[pv.ALIM_SUTUNU].eq(True), "Alim_skor"]
+        satis = pd.Series(None, index=visible.index, dtype=object)
+        for sutun, ad in reversed(pv.SATIS_TURLERI):  # öncelikli tür en son yazılır (SAT > KAR AL > ÇIK)
+            satis[visible[sutun].eq(True)] = ad
+        sell_points = satis.dropna()
+    if show_bluetsman and fs is not None:
+        gorunen = fs.reindex(grafik.index)[mask]
+        firsat_points = gorunen.index[gorunen["FIRSAT"].eq(True)]
     legend_items = [
         (name, charts.OVERLAY_COLORS[key], "line")
         for key, name in (
-            ("bl_fast", CHART_SERIES_BL_FAST), ("bl_slow", CHART_SERIES_BL_SLOW),
+            ("bl_fast", CHART_SERIES_BL_FAST if vade == pv.KISA else f"EMA {ayar.hizli_ema}"),
+            ("bl_slow", CHART_SERIES_BL_SLOW if vade == pv.KISA else f"EMA {ayar.yavas_ema}"),
             ("sma50", CHART_SERIES_SMA50), ("sma200", CHART_SERIES_SMA200),
             ("ema20", CHART_SERIES_EMA20), ("bollinger", CHART_SERIES_BOLLINGER),
         )
@@ -592,6 +708,9 @@ def render(device: str, ctx: dict) -> None:
     ]
     if show_bluetsman:
         legend_items.append((CHART_BL_SIGNAL, charts.OVERLAY_COLORS["bl_signal"], "tri-up accent"))
+        legend_items.append((CHART_SELL, t.DOWN, "tri-down"))
+        if vade == pv.KISA:
+            legend_items.append((CHART_FIRSAT, t.WARN, "dot"))
     legend_items += [
         (CHART_SERIES_MACD, charts.OVERLAY_COLORS["macd"], "line"),
         (CHART_SERIES_SIGNAL, charts.OVERLAY_COLORS["signal"], "line"),
@@ -599,13 +718,14 @@ def render(device: str, ctx: dict) -> None:
     legend(legend_items)
 
     fig = charts.build_detail_figure(
-        df=df[mask], overlays=overlays, rsi_series=rsi_series[mask], macd_df=macd_df[mask],
+        df=grafik[mask], overlays=overlays, rsi_series=rsi(g_close, 14)[mask], macd_df=macd(g_close)[mask],
         currency_label=currency_label, device=device, signal_scores=signal_scores,
+        sell_points=sell_points, firsat_points=firsat_points,
     )
     charts.show_chart(fig, device, key="hd_chart")
     _render_explanations(currency_label)
 
-    _render_alim_sistemi(df_tl, sonuc)
+    _render_alim_sistemi(df_tl, sonuc, vade, hafta_yarim, device)
 
     _render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
 

@@ -327,6 +327,7 @@ def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisseler: dict, veri_bitis: pd.
     asama4_satirlari, kalite_ozet = asama4(sonuc, kabuller)
     out += asama4_satirlari
     tum_ozet["kalite"] = kalite_ozet
+    panel_istatistikleri(sonuc, kabuller, firsat_karar)
     asama3d_satirlari, portfoy_ozet = asama3d(sonuc, hisseler, endeks, kalite_ozet)
     out += asama3d_satirlari
     tum_ozet["portfoy"] = portfoy_ozet
@@ -542,7 +543,6 @@ def asama3(sonuc: dict) -> tuple[list[str], dict]:
         "bir önceki günün 20 günlük EMA'sı ile giriş + 2R'nin küçüğü; giriş EMA'nın üstündeyse işlem açılmaz.",
         "",
     ]
-    tumu = pd.concat([sv["F_FIRSAT"], sv["F_BICAK"]], ignore_index=True) if not sv["F_BICAK"].empty else sv["F_FIRSAT"]
     for donem in ("TEST", "GELİŞTİRME"):
         bas, bit = ev.DONEMLER[donem]
         out += [f"**{donem}**{' ⬅ asıl sonuç' if donem == 'TEST' else ''}", "",
@@ -921,6 +921,46 @@ def asama4(sonuc: dict, kabuller: dict) -> tuple[list[str], dict]:
     kalibrasyon["olusturma"] = f"{date.today():%Y-%m-%d}"
     kalite.DOSYA.write_text(json.dumps(kalibrasyon, ensure_ascii=False, indent=1), encoding="utf-8")
     return out, ozet
+
+
+def panel_istatistikleri(sonuc: dict, kabuller: dict, firsat_karar: dict) -> None:
+    """Panelin geçmiş istatistik satırları için data/sinyal_kalitesi.json'a ek bölümler yazar.
+
+    genel: vadenin tüm alım sinyalleri (orta vadede kabul edilen filtrelerden geçenler) ve hedefe
+    ulaşma günlerinin dağılımı; satis: satış türleri ve aynı kurallarla rastgele satışa göre fark;
+    firsat: FIRSAT sinyalleri; bicak: düşen bıçak elemesinin ayırıp ayırmadığı.
+    """
+    import json
+
+    def dagilim(t: pd.DataFrame) -> dict[str, int]:
+        gunler = t.loc[t["sonuc"] == "hedef", "gun"].astype(int)
+        return {str(k): int(v) for k, v in gunler.value_counts().sort_index().items()}
+
+    def fark(t: pd.DataFrame, rastgele: pd.DataFrame, donem: str) -> float | None:
+        a, b = _r(t, donem).get("beklenen_r"), _r(rastgele, donem).get("beklenen_r")
+        return None if a is None or b is None else float(a - b)
+
+    veri = kalite.yukle()
+    veri["genel"], veri["satis"] = {}, {}
+    for vade in VADELER:
+        sv = sonuc[vade]
+        al = sv["AL"]
+        kabul = {f: e for f, e in kabuller.get(vade, {}).items() if f != "F7"}
+        for f, e in kabul.items():
+            al = al[al[f"{f}|{e}"]]
+        al = al[al["tarih"] >= ev.GELISTIRME[0]]
+        veri["genel"][vade] = {**kalite.istatistik(al), "hedef_gunleri": dagilim(al)}
+        veri["satis"][vade] = {
+            tur: {**kalite.istatistik(sv[tur]), "gel_fark": fark(sv[tur], sv["RASTGELE_SAT"], "GELİŞTİRME"),
+                  "test_fark": fark(sv[tur], sv["RASTGELE_SAT"], "TEST")}
+            for tur in SATIS_SINYALLERI
+        }
+    kv = sonuc["kisa"]
+    veri["firsat"] = {**kalite.istatistik(kv["F_FIRSAT"]),
+                      "test_r": _r(kv["F_FIRSAT"], "TEST").get("beklenen_r"),
+                      "test_rastgele_r": _r(kv["F_RASTGELE"], "TEST").get("beklenen_r")}
+    veri["bicak"] = {"ayiriyor": bool(firsat_karar.get("ayiriyor"))}
+    kalite.DOSYA.write_text(json.dumps(veri, ensure_ascii=False, indent=1, default=float), encoding="utf-8")
 
 
 def sinirlamalar() -> list[str]:

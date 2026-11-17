@@ -429,3 +429,114 @@ KQ_CAPTION = (
     "En iyi not bile 2025 sonrasında ortalama başabaş; ayrıntı Sistem Performansı sekmesinde ve docs/sistem_raporu.md'de."
 )
 TR_COL_GRADE = "Not"
+
+# ---------------------------------------------------------------------------
+# Aşama 5: vade seçimi, satış uyarıları, fırsat düşüşleri, düşen bıçak
+# ---------------------------------------------------------------------------
+
+VADE_LABEL = "Vade"
+VADE_OPTIONS = {"kisa": "Kısa vade (günlük)", "orta": "Orta vade (haftalık)"}
+VADE_WEEK_NOTE = "Bu haftanın mumu cuma kapanışına kadar kesinleşmez; bu haftanın sinyalleri ön sinyaldir."
+VADE_BIRIM = {"kisa": "gün", "orta": "hafta"}
+VADE_ONCE = {"kisa": "{days} gün önce", "orta": "{days} hafta önce"}
+VADE_BUGUN = {"kisa": "Bugün", "orta": "Bu hafta"}
+
+TS_CAPTION_ORTA = (
+    "Son haftalık barda alım sinyali veren BIST 100 hisseleri (orta vadenin kabul edilmiş filtreleri: "
+    "XU100 > EMA 100, fiyat > EMA 300, sinyal günü < %8,5), alım skoruna göre sıralı."
+)
+TS_NONE_ORTA = "Bu hafta alım sinyali yok"
+TS_RECENT_TITLE_ORTA = "Son 5 haftadaki sinyaller"
+TS_RECENT_NONE_ORTA = "Son 5 haftada da alım sinyali oluşmadı."
+
+SL_TITLE = "Bugünün Satış Uyarıları"
+SL_CAPTION = (
+    "Son barda SAT, KAR AL ya da ÇIK sinyali veren hisseler (bir hissede birden fazlaysa öncelik "
+    "SAT > KAR AL > ÇIK). Elinde olmayan hisse için yalnızca bilgi amaçlıdır."
+)
+SL_NONE = "Bugün satış uyarısı yok"
+SL_NONE_ORTA = "Bu hafta satış uyarısı yok"
+SL_STATS = (
+    "Geçmişte bu uyarılardan sonra fiyatın önce aşağı hedefe indiği %{hit}, önce yukarı stopa çıktığı %{stop} "
+    "({n} uyarı, 2021'den bu yana)."
+)
+SL_VERDICT_GOOD = "{ad}: geçmiş testte iki dönemde de rastgele bir günden daha iyi uyardı."
+SL_VERDICT_BAD = "{ad}: geçmiş testte 2025 sonrasında rastgele bir günden daha iyi uyarmadı."
+SL_SCORE = "Satış skoru"
+
+FR_TITLE = "⚡ Fırsat Düşüşleri"
+FR_CAPTION = (
+    "Sağlam hissede ani sert düşüşten sonra dönüş günü (günlük; vade seçiminden bağımsız). Giriş yarın "
+    "açılışta; stop dibin 0,5 ATR altı, hedef 20 günlük EMA ya da 2R (hangisi önce)."
+)
+FR_NONE = "Bugün fırsat sinyali yok"
+FR_WAITING_TITLE = "Dönüş bekleyenler (sert düşüş var, dönüş günü henüz gelmedi)"
+FR_WAITING_ROW = "5 günde {drop} · RSI(2) {rsi}"
+FR_WARN_STOCK = "Hisseye özel düşüş, KAP haberlerini kontrol et"
+FR_WARN_MARKET = "Piyasa geneli satış, pozisyonu küçük tut"
+FR_EMA_TARGET = "EMA 20 hedefi"
+FR_2R_TARGET = "2R hedefi (tahmini)"
+FR_RSI2 = "RSI(2)"
+FR_HONEST = (
+    "Geçmiş testte FIRSAT sinyalleri 2025 sonrasında işlem başına ortalama {r} R getirdi (aynı kurallarla "
+    "rastgele gün: {rr} R). Hedefe ulaşma oranı yüksek (%{hit}) ama kazançlar küçük, kayıplar büyük; "
+    "ayrıntı docs/sistem_raporu.md."
+)
+
+BK_TITLE = "⚠️ Düşen Bıçak Riski"
+BK_CAPTION = (
+    "Sert düşüş bölümündeki hisselerden düşen bıçak kriterlerinden en az biri görülenler. Bu hisselere "
+    "FIRSAT sinyali verilmez."
+)
+BK_NONE = "Düşen bıçak riski listesinde hisse yok"
+BK_HONEST = (
+    "Geçmiş testte bu eleme kötü sonuçlanan düşüşleri ayırt etmedi: elenen dönüşler ortalamada daha iyi "
+    "toparlandı. Liste uyarı olarak gösterilir, kesin bir sinyal değildir."
+)
+
+TR_COL_SCORE_K = "Kısa skor"
+TR_COL_SIGNAL_K = "Kısa sinyal"
+TR_COL_SCORE_O = "Orta skor"
+TR_COL_SIGNAL_O = "Orta sinyal"
+TR_LIST_META_VADE = "Kısa {k} · Orta {o} · RSI {rsi}"
+TR_SIGNAL_RECENT_ORTA = "Son {days} haftada sinyal"
+TR_FILTER_SIGNAL_ORTA = "Son {days} haftada sinyal verenler"
+
+HD_WEEKLY_INDICATORS = "Orta vadede mumlar ve göstergeler haftalıktır (SMA 50 = 50 hafta)."
+BL_SELL_PRESSURE = "Satış baskısı {skor}/100 (KAR AL eşiği {kar}, SAT eşiği {sat})"
+BL_LAST_SELL = "son satış sinyali: {ad}, {once}"
+BL_NO_SELL = "son {n} barda satış sinyali yok"
+CHART_SELL = "Satış sinyali"
+CHART_FIRSAT = "Fırsat sinyali"
+HS_TITLE = "Bu hissenin sinyal geçmişi"
+HS_OWN = (
+    "Seçili tarih aralığında bu hissede {n} tamamlanmış alım sinyali: hedefe ulaşan %{hit}, stop olan %{stop}, "
+    "ortalama {r} R."
+)
+HS_GENERAL = (
+    "Bu hissede seçili aralıkta {n} tamamlanmış sinyal var (15'ten az). Bu yüzden BIST 100 genelinin "
+    "2021'den bu yana istatistiği gösteriliyor: {m} sinyal, hedefe ulaşan %{hit}, stop olan %{stop}, "
+    "ortalama {r} R."
+)
+HS_HIST_TITLE = {"kisa": "Hedefe kaç günde ulaştı", "orta": "Hedefe kaç haftada ulaştı"}
+HS_HIST_AXIS = "Sinyalden sonra {birim}"
+HS_NO_TARGETS = "Hedefe ulaşan sinyal yok."
+KR_WEEKLY_NOTE = "Orta vadede getiri ve korelasyon haftalık kapanışlarla hesaplanır."
+SP_VADE_NOTE = "Portföy testi kısa vade (günlük) alım sinyalleri ve FIRSAT ile yapıldı; vade seçiminden etkilenmez."
+BL_STATUS_RECENT_ORTA = "Son alım sinyali {days} hafta önce ({date} haftası, skor {score})"
+BL_STATUS_NONE_ORTA = "Son {days} haftada alım sinyali yok"
+BL_STATUS_TODAY_ORTA = "Bu hafta alım sinyali (skor {score}) · cuma kapanışında kesinleşir"
+BL_GATES_ORTA = (
+    "Alım sinyali için: taze kesişim {cross} · fiyat > EMA 30 {price} · trend (fiyat > EMA 40) {trend} · "
+    "skor ≥ {min_score} {score} · filtreler (XU100 > EMA 100 {f1}, fiyat > EMA 300 {f5}, sinyal günü < %8,5 {f8})"
+)
+BL_COL_FORWARD_ORTA = "10 hafta sonra"
+BL_HISTORY_CAPTION_ORTA = (
+    "10 hafta sonra: sinyal haftası kapanışından 10 hafta sonraki kapanışa değişim (temettü düzeltmeli). "
+    "Geçmiş sonuçlar gelecek için garanti değildir."
+)
+HD_NO_INDEX = "XU100 verisi alınamadı; orta vadenin piyasa filtresi hesaplanamadığı için sinyaller gösterilemiyor."
+BL_CAPTION_ORTA = (
+    "Bluetsman Alım/Sat v2, orta vade (haftalık grafik); temettü düzeltmeli kapanışla, orta vadenin kabul edilmiş "
+    "alım filtreleriyle. Bir sinyal taramasıdır, yatırım tavsiyesi değildir."
+)

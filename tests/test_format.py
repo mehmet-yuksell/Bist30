@@ -57,10 +57,20 @@ def test_fmt_date_and_price():
 
 def test_ui_text_has_no_buy_sell_language():
     import ui_text
+    import panel_veri
 
     texts = [v for v in vars(ui_text).values() if isinstance(v, str)]
     texts += [v for v in ui_text.EXPLANATIONS.values()]
+    # Motorun satış sinyali adları (SAT, KAR AL, ÇIK) özel addır, tavsiye cümlesi değildir; yalnızca
+    # onlar muaf. Sınırlama: "SAT" sinyal adının kendisi olduğu için tek başına "SAT" artık bu testte
+    # yakalanmaz; tek başına "AL" (ör. "ŞİMDİ AL") hâlâ yakalanır.
+    import re
+
+    harf = "A-ZÇĞİÖŞÜ"
+    sinyal_adlari = sorted((ad.upper() for _, ad in panel_veri.SATIS_TURLERI), key=len, reverse=True)
     for text in texts:
-        upper = text.upper()
+        upper = f" {text.upper()} "
         assert "AL/SAT" not in upper
-        assert " AL " not in f" {upper} " and " SAT " not in f" {upper} "
+        for ad in sinyal_adlari:
+            upper = re.sub(rf"(?<![{harf}]){re.escape(ad)}(?![{harf}])", "_", upper)
+        assert " AL " not in upper and " SAT " not in upper, text

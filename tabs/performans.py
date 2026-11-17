@@ -38,6 +38,7 @@ from ui_text import (
     SP_PERIOD_LABEL,
     SP_PERIODS,
     SP_TITLE,
+    SP_VADE_NOTE,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -79,6 +80,8 @@ def _metrik_tablosu(meta: dict, donem: str, sira: list[str]) -> pd.DataFrame:
 
 def render(device: str, ctx: dict) -> None:
     section_title(SP_TITLE, SP_CAPTION)
+    if ctx.get("vade") == "orta":
+        st.caption(SP_VADE_NOTE)
     if not (CSV_PATH.exists() and JSON_PATH.exists()):
         callout("info", None, SP_MISSING)
         return
