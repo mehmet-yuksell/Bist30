@@ -7,12 +7,12 @@ arayüzden bağımsızdır.
 
 import streamlit as st
 
-from tabs import hisse_detay, karsilastirma, tarama
+from tabs import hisse_detay, karsilastirma, performans, tarama
 from ui.components import footer, header_html
 from ui.format import fmt_date
 from ui.styles import inject_styles
 from ui.viewport import detect_device
-from ui_text import APP_TITLE, TAB_HISSE_DETAY, TAB_KARSILASTIRMA, TAB_TARAMA
+from ui_text import APP_TITLE, TAB_HISSE_DETAY, TAB_KARSILASTIRMA, TAB_PERFORMANS, TAB_TARAMA
 
 st.set_page_config(
     page_title=APP_TITLE,
@@ -31,10 +31,11 @@ header.html(header_html())
 ctx = {"last_dates": []}
 
 # Tarama ilk sekmedir: Bluetsman sinyali veren hisseler açılışta görünür.
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     f":material/grid_view: {TAB_TARAMA}",
     f":material/candlestick_chart: {TAB_HISSE_DETAY}",
     f":material/compare_arrows: {TAB_KARSILASTIRMA}",
+    f":material/monitoring: {TAB_PERFORMANS}",
 ])
 
 with tab1:
@@ -45,6 +46,9 @@ with tab2:
 
 with tab3:
     karsilastirma.render(device, ctx)
+
+with tab4:
+    performans.render(device, ctx)
 
 if ctx["last_dates"]:
     header.html(header_html(fmt_date(max(ctx["last_dates"]))))

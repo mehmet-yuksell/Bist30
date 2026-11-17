@@ -26,6 +26,7 @@ warnings.filterwarnings("ignore")
 import evaluation as ev  # noqa: E402
 import filtreler  # noqa: E402
 import firsat  # noqa: E402
+import portfoy  # noqa: E402
 import motor_veri  # noqa: E402
 import tarayici_motor as motor  # noqa: E402
 from config import BIST100_TICKERS, BIST100_LAST_UPDATED  # noqa: E402
@@ -33,6 +34,9 @@ from data import get_multiple_price_histories, get_price_history  # noqa: E402
 
 CACHE = ROOT / ".eval_cache"
 REPORT = ROOT / "docs" / "sistem_raporu.md"
+# Panelin "Sistem Performansı" sekmesi bu dosyaları okur (git'e girer)
+PERFORMANS_CSV = ROOT / "data" / "sistem_performansi.csv"
+PERFORMANS_JSON = ROOT / "data" / "sistem_performansi.json"
 PERIOD = "10y"
 ILK_BAR_GUNLUK = motor_veri.MIN_BARS  # göstergelerin oturması için atlanan ilk günler
 ILK_BAR_HAFTALIK = 52                 # orta vadede atlanan ilk haftalar
@@ -137,8 +141,13 @@ def firsat_islemleri(girdi: pd.DataFrame, endeks: pd.DataFrame, kod: str) -> dic
                 t[anahtar] = seri.reindex(t["tarih"]).to_numpy(dtype=bool)
         return t
 
+    def oncelikli(t: pd.DataFrame) -> pd.DataFrame:
+        if not t.empty:  # portföyde sıralama: RSI(2) düşük olan önce
+            t["oncelik"] = 100 - s["RSI2"].reindex(t["tarih"]).to_numpy()
+        return t
+
     sonuc = {
-        "F_FIRSAT": etiketle(firsat.islemler(s, s["FIRSAT"], kod, ilk)),
+        "F_FIRSAT": oncelikli(etiketle(firsat.islemler(s, s["FIRSAT"], kod, ilk))),
         "F_BICAK": etiketle(firsat.islemler(s, s["BICAK"], kod, ilk)),
         "F_TETIK": etiketle_varyant(etiketle(firsat.islemler(s, s["tetik"], kod, ilk))),
         "F_KURULUM": firsat.islemler(s, s["bolum_basi"], kod, ilk),
@@ -186,6 +195,8 @@ def tum_islemler(hisseler: dict, endeks: pd.DataFrame) -> dict[str, dict[str, pd
                 "RASTGELE_AL": ev.islemler(s, herkes, s["Stop"], s["Hedef"], alim, kod, ilk_bar),
                 "RASTGELE_SAT": ev.islemler(s, herkes, s_stop, s_hedef, satis, kod, ilk_bar),
             }
+            if not isler["AL"].empty:
+                isler["AL"]["oncelik"] = s["Alim_skor"].reindex(isler["AL"]["tarih"]).to_numpy()
             for etiket, seviye in filtreler.FILTRELER["F7"][1].items():
                 teyitli = s["AL"] & filtreler.teyit(s, seviye)
                 isler[f"AL_F7|{etiket}"] = _bayrak_ekle(
@@ -255,7 +266,8 @@ def vade_tablosu(isler: dict[str, pd.DataFrame], donem: str, birim: str) -> tupl
     return satirlar, ozetler
 
 
-def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisse_sayisi: int, veri_bitis: pd.Timestamp) -> dict:
+def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisseler: dict, veri_bitis: pd.Timestamp) -> dict:
+    hisse_sayisi = len(hisseler)
     out = [
         "# BIST Sinyal Sistemi Raporu",
         "",
@@ -311,6 +323,9 @@ def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisse_sayisi: int, veri_bitis: 
     asama3_satirlari, firsat_karar = asama3(sonuc)
     out += asama3_satirlari
     tum_ozet["firsat"] = firsat_karar
+    asama3d_satirlari, portfoy_ozet = asama3d(sonuc, hisseler, endeks)
+    out += asama3d_satirlari
+    tum_ozet["portfoy"] = portfoy_ozet
     out += sinirlamalar()
     REPORT.write_text("\n".join(out) + "\n", encoding="utf-8")
     return tum_ozet
@@ -680,6 +695,142 @@ def eleme_ayari(tetik: pd.DataFrame, bolum: pd.DataFrame) -> tuple[list[str], di
     return out, sonuc
 
 
+# ---------------------------------------------------------------------------
+# Aşama 3d — portföy ve risk yönetimi
+# ---------------------------------------------------------------------------
+
+KOMBINASYONLAR = {
+    "Sadece trend": ("trend",),
+    "Sadece Fırsat": ("firsat",),
+    "Trend + Fırsat": ("trend", "firsat"),
+}
+KIYASLAR = ("XU100 al-tut", "BIST 100 eşit ağırlıklı al-tut")
+
+
+def _adaylar(t: pd.DataFrame, sistem: str) -> pd.DataFrame:
+    """İşlem tablosundan portföy adayları: girişi olan (geçersiz olmayan) işlemler."""
+    if t.empty:
+        return pd.DataFrame()
+    t = t[t["sonuc"].isin(ev.OUTCOMES + ("acik",)) & t["giris_tarihi"].notna()].copy()
+    t["sistem"] = sistem
+    t["cikis_tarihi"] = t["cikis_tarihi"].where(t["sonuc"] != "acik")
+    return t[["kod", "sistem", "tarih", "giris_tarihi", "giris", "stop", "cikis_tarihi", "cikis", "oncelik"]]
+
+
+def kapanis_tablosu(hisseler: dict, endeks: pd.DataFrame) -> pd.DataFrame:
+    """Düzeltilmiş kapanışlar, tüm işlem günleri takviminde (hisse × gün)."""
+    kapanis = {kod: motor_veri.motor_girdisi(df)["Close"] for kod, df in hisseler.items()}
+    tablo = pd.DataFrame(kapanis)
+    takvim = tablo.index.union(endeks.index)
+    return tablo.reindex(takvim)
+
+
+def asama3d(sonuc: dict, hisseler: dict, endeks: pd.DataFrame) -> tuple[list[str], dict]:
+    sv = sonuc["kisa"]
+    adaylar = {"trend": _adaylar(sv["AL"], "trend"), "firsat": _adaylar(sv["F_FIRSAT"], "firsat")}
+    kapanis = kapanis_tablosu(hisseler, endeks)
+    rejim_df = portfoy.rejim(endeks)
+    veri_sonu = kapanis.index[-1]
+
+    seriler, ozetler, islem_sayisi = {}, {}, {}
+    for donem, (bas, bit) in ev.DONEMLER.items():
+        bit = min(bit, veri_sonu)
+        seriler[donem], ozetler[donem], islem_sayisi[donem] = {}, {}, {}
+        for ad, sistemler in KOMBINASYONLAR.items():
+            a = pd.concat([adaylar[s] for s in sistemler], ignore_index=True)
+            sermaye, kayit = portfoy.simule(a, kapanis, rejim_df, bas, bit)
+            seriler[donem][ad] = sermaye
+            islem_sayisi[donem][ad] = len(kayit)
+        seriler[donem]["XU100 al-tut"] = portfoy.al_tut_endeks(endeks, bas, bit)
+        seriler[donem]["BIST 100 eşit ağırlıklı al-tut"] = portfoy.al_tut_esit(kapanis, bas, bit)
+        for ad, s in seriler[donem].items():
+            ozetler[donem][ad] = portfoy.metrikler(s)
+
+    out = [
+        "## Aşama 3d — Portföy ve risk yönetimi",
+        "",
+        "Sinyal bazlı değil, portföy bazlı test. Her dönem **100.000 TL** ile, pozisyonsuz başlar (TEST, "
+        "GELİŞTİRME'den pozisyon devralmaz). İşlemlerin giriş/çıkış fiyatları önceki aşamalardaki simülasyonun "
+        "aynısıdır; portföy katmanı yalnızca hangi işlemin ve kaç adet alınacağına karar verir. Kurallar "
+        "`portfoy.py` dosyasının başında.",
+        "",
+        "- **Risk:** işlem başına sermayenin %1'i (adet = sermaye × risk / (giriş − stop)); tek pozisyon en "
+        "fazla %20; kaldıraç yok; en fazla 6 açık pozisyon, aynı hissede tek pozisyon.",
+        "- **Oynaklık:** XU100'ün 20 günlük gerçekleşen oynaklığı son 1 yılın %80'lik diliminin üstündeyse risk %0,5.",
+        "- **Piyasa filtresi:** XU100 < 50 günlük EMA iken trend sistemine yeni alım yok; FIRSAT'a izin var, risk %0,5.",
+        "- **Sıralama (varsayım):** yer yetmezse trend sinyalleri alım skoruna göre önce, FIRSAT sinyalleri sonra "
+        "(RSI(2) düşük olan önce). Not sistemi (Aşama 4) gelince yeniden ele alınacak.",
+        "- **Trend sistemi** kısa vade (günlük) AL'dır; haftalık orta vade bu günlük portföye dahil değil. "
+        "**Destek** sistemi tanımlanmadığı için \"trend + Fırsat + Destek\" kombinasyonu yok.",
+        "- **Metrikler:** Sharpe ve Sortino risksiz getiri 0 ile hesaplandı. TL mevduat faizi bu dönemde çok "
+        "yüksek olduğu için bu oranlar olduğundan iyi görünür; asıl kıyas XU100 ve eşit ağırlıklı al-tut'tur. "
+        "XU100 fiyat endeksidir (temettü içermez); hisseler ve eşit ağırlıklı al-tut temettü düzeltmelidir.",
+        "- **Karar ölçütü:** önce TEST'te getiri / maksimum düşüş oranı, sonra toplam getiri.",
+        "",
+    ]
+    for donem in ("TEST", "GELİŞTİRME"):
+        bas, bit = ev.DONEMLER[donem]
+        out += [f"**{donem}**{' ⬅ asıl sonuç' if donem == 'TEST' else ''} "
+                f"({fmt_tarih(seriler[donem]['XU100 al-tut'].index[0])} – {fmt_tarih(seriler[donem]['XU100 al-tut'].index[-1])})", "",
+                "| Portföy | İşlem | Toplam getiri % | Yıllık getiri % | Yıllık oynaklık % | Sharpe | Sortino | "
+                "Maks. düşüş % | Düşüş süresi (gün) | Getiri / maks. düşüş |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+        for ad in list(KOMBINASYONLAR) + list(KIYASLAR):
+            m = ozetler[donem][ad]
+            out.append(
+                f"| {ad} | {islem_sayisi[donem].get(ad, '—')} | {_f(m['toplam_getiri'] * 100, 1)} | "
+                f"{_f(m['yillik_getiri'] * 100, 1)} | {_f(m['yillik_oynaklik'] * 100, 1)} | {_f(m['sharpe'], 2)} | "
+                f"{_f(m['sortino'], 2)} | {_f(m['max_dusus'] * 100, 1)} | {m['max_dusus_suresi']} | "
+                f"**{_f(m['getiri_dusus_orani'], 2)}** |")
+        gunluk = pd.DataFrame({ad: seriler[donem][ad].pct_change() for ad in
+                               ("Sadece trend", "Sadece Fırsat", "XU100 al-tut")}).dropna()
+        korelasyon = gunluk.corr()
+        out += ["", f"Günlük getiri korelasyonu ({donem}): trend–Fırsat {_f(korelasyon.iloc[0, 1], 2)}, "
+                f"trend–XU100 {_f(korelasyon.iloc[0, 2], 2)}, Fırsat–XU100 {_f(korelasyon.iloc[1, 2], 2)}.", ""]
+
+    test = ozetler["TEST"]
+    sira = sorted(KOMBINASYONLAR, key=lambda ad: (-np.nan_to_num(test[ad]["getiri_dusus_orani"], nan=-np.inf),
+                                                  -test[ad]["toplam_getiri"]))
+    en_iyi = sira[0]
+    xu = test["XU100 al-tut"]
+    out += ["**Karar (TEST, önce getiri / maks. düşüş, sonra toplam getiri):** " + " > ".join(sira) + ". "
+            f"En iyi kombinasyon **{en_iyi}**: getiri/düşüş {_f(test[en_iyi]['getiri_dusus_orani'], 2)}, toplam getiri "
+            f"%{_f(test[en_iyi]['toplam_getiri'] * 100, 1)}. Aynı dönemde XU100 al-tut: getiri/düşüş "
+            f"{_f(xu['getiri_dusus_orani'], 2)}, toplam %{_f(xu['toplam_getiri'] * 100, 1)}.", ""]
+
+    performans_disa_aktar(seriler, ozetler, islem_sayisi, veri_sonu)
+    return out, {"sira": sira}
+
+
+def fmt_tarih(t: pd.Timestamp) -> str:
+    return f"{t:%d.%m.%Y}"
+
+
+def performans_disa_aktar(seriler: dict, ozetler: dict, islem_sayisi: dict, veri_sonu: pd.Timestamp) -> None:
+    """Panelin Sistem Performansı sekmesi için sermaye serileri (CSV) ve metrikler (JSON)."""
+    import json
+
+    satirlar = [
+        {"donem": donem, "tarih": f"{t:%Y-%m-%d}", "seri": ad, "sermaye": round(float(v), 2)}
+        for donem, sozluk in seriler.items() for ad, s in sozluk.items() for t, v in s.dropna().items()
+    ]
+    pd.DataFrame(satirlar).to_csv(PERFORMANS_CSV, index=False, encoding="utf-8")
+
+    def temiz(x):
+        return None if x is None or (isinstance(x, float) and not np.isfinite(x)) else float(x)
+
+    meta = {
+        "veri_sonu": f"{veri_sonu:%Y-%m-%d}",
+        "olusturma": f"{date.today():%Y-%m-%d}",
+        "baslangic_sermaye": portfoy.VARSAYILAN.sermaye,
+        "kombinasyonlar": list(KOMBINASYONLAR),
+        "kiyaslar": list(KIYASLAR),
+        "metrikler": {donem: {ad: {k: temiz(v) for k, v in m.items()} | {"islem": islem_sayisi[donem].get(ad)}
+                              for ad, m in d.items()} for donem, d in ozetler.items()},
+    }
+    PERFORMANS_JSON.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def sinirlamalar() -> list[str]:
     return [
         "## Sınırlamalar",
@@ -708,9 +859,10 @@ def main() -> int:
     sonuc = tum_islemler(hisseler, endeks)
     pd.to_pickle(sonuc, CACHE / "islemler.pkl")
     veri_bitis = max(df.index[-1] for df in hisseler.values())
-    ozet = rapor_yaz(sonuc, endeks, len(hisseler), veri_bitis)
+    ozet = rapor_yaz(sonuc, endeks, hisseler, veri_bitis)
     print("Kabul edilen filtreler:", ozet.pop("kabuller"))
     print("FIRSAT eleme:", ozet.pop("firsat"))
+    print("Portföy:", ozet.pop("portfoy"))
     for vade in ozet:
         for donem in ozet[vade]:
             s = ozet[vade][donem]

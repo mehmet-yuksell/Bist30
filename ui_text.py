@@ -372,3 +372,46 @@ KR_PERIOD = "{start} – {end}"
 
 DATE_BUTTON_LABEL = "Tarih"
 BT_PRICE_LEGEND = "Fiyat (düzeltilmiş, TL)"
+
+# ---------------------------------------------------------------------------
+# Sistem Performansı (portföy testi; tools/sistem_raporu.py üretir)
+# ---------------------------------------------------------------------------
+
+TAB_PERFORMANS = "Sistem Performansı"
+SP_TITLE = "Sistem Performansı"
+SP_CAPTION = (
+    "Sinyallerin geçmiş veriyle portföy simülasyonu: 100.000 TL, işlem başına %1 risk, en fazla "
+    "6 pozisyon. Eğitim amaçlıdır, yatırım tavsiyesi değildir; geçmiş performans gelecek için garanti değildir."
+)
+SP_PERIOD_LABEL = "Dönem"
+SP_PERIODS = {"TEST": "TEST (2025 ve sonrası)", "GELİŞTİRME": "GELİŞTİRME (2021-2024)"}
+SP_EQUITY_TITLE = "Sermaye eğrisi (TL)"
+SP_DRAWDOWN_TITLE = "Tepeden düşüş (%)"
+SP_METRICS_TITLE = "Metrikler"
+SP_COL_PORTFOLIO = "Portföy"
+SP_COL_TRADES = "İşlem"
+SP_COL_TOTAL = "Toplam getiri"
+SP_COL_ANNUAL = "Yıllık getiri"
+SP_COL_VOL = "Yıllık oynaklık"
+SP_COL_SHARPE = "Sharpe"
+SP_COL_SORTINO = "Sortino"
+SP_COL_MAXDD = "Maks. düşüş"
+SP_COL_DD_DAYS = "Düşüş süresi (gün)"
+SP_COL_RATIO = "Getiri / maks. düşüş"
+SP_AS_OF = "Veri sonu {data} · hesaplama {computed} · ayrıntılar ve yöntem: docs/sistem_raporu.md"
+SP_MISSING = (
+    "Performans verisi bulunamadı. Proje kökünde `python tools/sistem_raporu.py` çalıştırıldığında oluşur."
+)
+SP_NOTES = [
+    "TEST dönemi, kuralların ve eşiklerin ayarlanmasında hiç kullanılmadı; asıl sonuç odur.",
+    "Hisse evreni bugünkü BIST 100 listesidir (hayatta kalma yanlılığı): sonuçlar olduğundan iyi görünebilir.",
+    "Sharpe ve Sortino risksiz getiri 0 ile hesaplandı; TL faizi yüksek olduğu için gerçekte daha düşüktür.",
+    "XU100 fiyat endeksidir (temettü içermez); sistemler ve eşit ağırlıklı al-tut temettü düzeltmelidir.",
+]
+SP_NOTES_TITLE = "Okurken dikkat"
+EXPLANATIONS["portfolio"] = (
+    "Getiri / maksimum düşüş oranı, yıllık getirinin en büyük tepeden düşüşe bölümüdür; aynı getiriyi daha "
+    "küçük düşüşle sağlayan portföy daha yüksek puan alır. Sharpe, getirinin oynaklığa oranıdır; Sortino "
+    "yalnızca aşağı yönlü oynaklığı hesaba katar. Düşüş süresi, sermayenin bir önceki tepesinin altında "
+    "kaldığı en uzun işlem günü sayısıdır."
+)

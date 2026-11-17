@@ -352,3 +352,32 @@ def build_correlation_heatmap_figure(corr_df: pd.DataFrame, device: str) -> go.F
     fig.update_xaxes(showgrid=False, showline=False, side="bottom", showspikes=False, ticks="",
                      tickfont=dict(size=11 if mobile else 12, color=t.TEXT_2))
     return fig
+
+
+# Sistem Performansı: portföyler renkli düz, kıyaslar gri kesikli çizgi
+PERFORMANS_COLORS = [t.SERIES[0], t.SERIES[1], t.SERIES[2]]
+KIYAS_STYLES = [(t.TEXT_2, "dot"), (t.SERIES[3], "dash")]
+
+
+def performans_renkleri(portfoyler: list[str], kiyaslar: list[str]) -> dict[str, tuple[str, str | None]]:
+    renk = {ad: (PERFORMANS_COLORS[i % len(PERFORMANS_COLORS)], None) for i, ad in enumerate(portfoyler)}
+    renk.update({ad: KIYAS_STYLES[i % len(KIYAS_STYLES)] for i, ad in enumerate(kiyaslar)})
+    return renk
+
+
+def build_performance_figure(series: dict[str, pd.Series], styles: dict, device: str,
+                             fmt: str = ",.0f", percent: bool = False) -> go.Figure:
+    """Sermaye eğrisi ya da düşüş grafiği: series = {ad: tarih indeksli seri}."""
+    fig = go.Figure()
+    for name, s in series.items():
+        color, dash = styles[name]
+        fig.add_trace(_line(s.index, s.values * (100 if percent else 1), name, color,
+                            1.4 if dash else 1.9, fmt=".1f" if percent else fmt))
+        if dash:
+            fig.data[-1].line.dash = dash
+    if percent:
+        fig.add_hline(y=0, line=dict(color="rgba(163,170,184,0.35)", width=1))
+        fig.update_yaxes(ticksuffix="%")
+    _base_layout(fig, device, LINE_HEIGHT[device])
+    _date_axes(fig)
+    return fig

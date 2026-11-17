@@ -92,6 +92,16 @@ ayarını kullanır:
   güncellenemedi, X dakika önceki veri gösteriliyor" uyarısı çıkar.
 - Resmî tatiller ayrıca tutulmaz: son verinin tarihi bugün değilse piyasa kapalı gösterilir.
 
+### 📊 Sistem Performansı ve sinyal raporu
+- `python tools/sistem_raporu.py` 10 yıllık veriyle sinyalleri değerlendirir ve
+  [docs/sistem_raporu.md](docs/sistem_raporu.md) dosyasını üretir: ertesi gün açılıştan giriş,
+  stop/hedef/zaman aşımı, %0,2 maliyet; GELİŞTİRME (2021-2024) ve TEST (2025-) ayrı; rastgele gün
+  ve XU100 kıyası; alım filtreleri (F1-F8), FIRSAT sistemi ve portföy testi
+- **Sistem Performansı** sekmesi portföy simülasyonunun sermaye eğrisini, tepeden düşüşünü ve
+  metriklerini gösterir (100.000 TL, işlem başına %1 risk, en fazla 6 pozisyon; veri
+  `data/sistem_performansi.*` dosyalarından okunur)
+- Sonuçlar olumsuz olsa da olduğu gibi raporlanır; TEST dönemi kuralların ayarlanmasında kullanılmaz
+
 ### ⚖️ Karşılaştırma
 - Aynı ~630 hisselik liste arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
 - Dönem getirisi sıralaması kartı
@@ -145,6 +155,7 @@ tabs/
   hisse_detay.py    Hisse Detay sekmesi + alım sistemi kırılımı + Teknik Özet + Sinyal Karnesi
   tarama.py         BIST 100 Tarama: Bugünün Alım Sinyalleri + alım skorlu liste
   karsilastirma.py  Karşılaştırma sekmesi
+  performans.py     Sistem Performansı sekmesi (portföy simülasyonu sonuçları)
 ui/
   theme.py          Tasarım token'ları (renk, boşluk, yarıçap) — CSS ve Plotly ortak kaynağı
   styles.py         CSS tasarım sistemi + mobil öncelikli medya sorguları
@@ -162,12 +173,17 @@ motor_veri.py       data.py çıktısı -> motor girdisi (temettü düzeltmesi) 
 market.py           BIST seans saati ve önbellek zaman dilimi (Europe/Istanbul)
 feed.py             Piyasa saatine göre güncel veri, son başarılı veriye dönüş, yenileme sınırı
 bluetsman.py        Eski 8 koşullu Bluetsman (Pine) aktarımı; panelde artık kullanılmıyor
+evaluation.py       Sinyal değerlendirme (işlem simülasyonu, metrikler, dönem ayrımı)
+filtreler.py        Alım sinyali kalite filtreleri F1-F8
+firsat.py           FIRSAT sistemi (sert düşüş sonrası toparlanma) ve düşen bıçak elemesi
+portfoy.py          Portföy simülasyonu (pozisyon büyüklüğü, risk, rejim) ve metrikler
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)
 tools/
   update_yahoo_coverage.py  bist_all.csv'deki yahoo_data işaretlerini yeniden hesaplar
   check_bist100.py          config'teki BIST 100 listesini Borsa İstanbul'un güncel dosyasıyla karşılaştırır
+  sistem_raporu.py          sinyal ve portföy değerlendirmesi -> docs/sistem_raporu.md, data/sistem_performansi.*
 tests/              pytest testleri
 docs/               Ekran görüntüleri
 ```

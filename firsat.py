@@ -126,6 +126,7 @@ def gunluk_kosullar(df: pd.DataFrame, endeks: pd.DataFrame | None = None,
     out["uyari_piyasa"] = xu5 <= -ayar.endeks_dusus
 
     out["ATR"] = a
+    out["RSI2"] = rsi2
     out["EMA_hedef"] = ema(c, ayar.hedef_ema)
     return out
 
@@ -137,7 +138,7 @@ def firsat_hesapla(df: pd.DataFrame, endeks: pd.DataFrame | None = None,
     Sütunlar: kurulum, bolum_basi (yeni düşüş bölümünün ilk kurulum günü), tetik (dönüş günü,
     elemeden önce), BICAK (tetik var ama düşen bıçak elemesi), FIRSAT (tetik ve eleme yok),
     BICAK_RISKI (kurulum penceresinde ve en az bir bıçak kriteri görülmüş; panel listesi),
-    K1-K4 (bölüm başından o güne kadar görülen), uyarılar, Stop, ATR, EMA_hedef.
+    K1-K4 (bölüm başından o güne kadar görülen), uyarılar, Stop, ATR, EMA_hedef, RSI2.
     """
     k = gunluk_kosullar(df, endeks, ayar)
     c, h, lo = df["Close"].to_numpy(), df["High"].to_numpy(), df["Low"].to_numpy()
@@ -188,6 +189,7 @@ def firsat_hesapla(df: pd.DataFrame, endeks: pd.DataFrame | None = None,
     out["uyari_piyasa"] = k["uyari_piyasa"].fillna(False).to_numpy(dtype=bool)
     out["ATR"] = k["ATR"]
     out["EMA_hedef"] = k["EMA_hedef"]
+    out["RSI2"] = k["RSI2"]
     dip = df["Low"].rolling(ayar.dip_pencere, min_periods=1).min()  # dönüş günü dahil son 10 gün
     out["Stop"] = dip - ayar.stop_atr * k["ATR"]
     return out

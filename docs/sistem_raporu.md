@@ -386,6 +386,44 @@ Her kriter için 3 eşik denendi. Seçim yalnızca GELİŞTİRME'de: her yıl i�
 | GELİŞTİRME | 800 | 0,002 | 13 | -0,070 | 0,76 | 3,93 | ✔ |
 | TEST | 338 | -0,104 | 6 | -0,013 | -1,84 | 0,48 | ✘ |
 
+## Aşama 3d — Portföy ve risk yönetimi
+
+Sinyal bazlı değil, portföy bazlı test. Her dönem **100.000 TL** ile, pozisyonsuz başlar (TEST, GELİŞTİRME'den pozisyon devralmaz). İşlemlerin giriş/çıkış fiyatları önceki aşamalardaki simülasyonun aynısıdır; portföy katmanı yalnızca hangi işlemin ve kaç adet alınacağına karar verir. Kurallar `portfoy.py` dosyasının başında.
+
+- **Risk:** işlem başına sermayenin %1'i (adet = sermaye × risk / (giriş − stop)); tek pozisyon en fazla %20; kaldıraç yok; en fazla 6 açık pozisyon, aynı hissede tek pozisyon.
+- **Oynaklık:** XU100'ün 20 günlük gerçekleşen oynaklığı son 1 yılın %80'lik diliminin üstündeyse risk %0,5.
+- **Piyasa filtresi:** XU100 < 50 günlük EMA iken trend sistemine yeni alım yok; FIRSAT'a izin var, risk %0,5.
+- **Sıralama (varsayım):** yer yetmezse trend sinyalleri alım skoruna göre önce, FIRSAT sinyalleri sonra (RSI(2) düşük olan önce). Not sistemi (Aşama 4) gelince yeniden ele alınacak.
+- **Trend sistemi** kısa vade (günlük) AL'dır; haftalık orta vade bu günlük portföye dahil değil. **Destek** sistemi tanımlanmadığı için "trend + Fırsat + Destek" kombinasyonu yok.
+- **Metrikler:** Sharpe ve Sortino risksiz getiri 0 ile hesaplandı. TL mevduat faizi bu dönemde çok yüksek olduğu için bu oranlar olduğundan iyi görünür; asıl kıyas XU100 ve eşit ağırlıklı al-tut'tur. XU100 fiyat endeksidir (temettü içermez); hisseler ve eşit ağırlıklı al-tut temettü düzeltmelidir.
+- **Karar ölçütü:** önce TEST'te getiri / maksimum düşüş oranı, sonra toplam getiri.
+
+**TEST** ⬅ asıl sonuç (02.01.2025 – 17.11.2026)
+
+| Portföy | İşlem | Toplam getiri % | Yıllık getiri % | Yıllık oynaklık % | Sharpe | Sortino | Maks. düşüş % | Düşüş süresi (gün) | Getiri / maks. düşüş |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Sadece trend | 142 | -20,3 | -11,4 | 13,8 | -0,81 | -1,03 | -22,3 | 418 | **-0,51** |
+| Sadece Fırsat | 159 | -20,7 | -11,7 | 5,8 | -2,10 | -2,26 | -21,2 | 468 | **-0,55** |
+| Trend + Fırsat | 283 | -25,0 | -14,3 | 14,4 | -1,00 | -1,25 | -27,9 | 418 | **-0,51** |
+| XU100 al-tut | — | 18,1 | 9,4 | 25,0 | 0,48 | 0,69 | -28,9 | 130 | **0,32** |
+| BIST 100 eşit ağırlıklı al-tut | — | 21,1 | 10,8 | 24,2 | 0,55 | 0,76 | -26,0 | 130 | **0,42** |
+
+Günlük getiri korelasyonu (TEST): trend–Fırsat 0,16, trend–XU100 0,48, Fırsat–XU100 0,31.
+
+**GELİŞTİRME** (04.01.2021 – 31.12.2024)
+
+| Portföy | İşlem | Toplam getiri % | Yıllık getiri % | Yıllık oynaklık % | Sharpe | Sortino | Maks. düşüş % | Düşüş süresi (gün) | Getiri / maks. düşüş |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Sadece trend | 260 | 64,6 | 13,4 | 11,6 | 1,14 | 1,63 | -16,4 | 258 | **0,82** |
+| Sadece Fırsat | 380 | -4,6 | -1,2 | 6,3 | -0,16 | -0,19 | -15,1 | 298 | **-0,08** |
+| Trend + Fırsat | 597 | 55,7 | 11,8 | 12,9 | 0,93 | 1,29 | -18,8 | 255 | **0,63** |
+| XU100 al-tut | — | 557,4 | 61,0 | 29,3 | 1,77 | 2,60 | -22,9 | 154 | **2,67** |
+| BIST 100 eşit ağırlıklı al-tut | — | 800,6 | 74,1 | 29,3 | 2,04 | 3,04 | -29,0 | 178 | **2,56** |
+
+Günlük getiri korelasyonu (GELİŞTİRME): trend–Fırsat 0,15, trend–XU100 0,42, Fırsat–XU100 0,40.
+
+**Karar (TEST, önce getiri / maks. düşüş, sonra toplam getiri):** Sadece trend > Trend + Fırsat > Sadece Fırsat. En iyi kombinasyon **Sadece trend**: getiri/düşüş -0,51, toplam getiri %-20,3. Aynı dönemde XU100 al-tut: getiri/düşüş 0,32, toplam %18,1.
+
 ## Sınırlamalar
 
 - **Hayatta kalma yanlılığı:** test evreni bugünkü BIST 100 listesidir. Geçmişte endekste olup çıkarılan, iflas eden ya da işlemden kaldırılan hisseler yoktur; endekse sonradan girenler genelde iyi performans gösterdiği için girmiştir. Sonuçlar bu yüzden olduğundan iyi görünebilir.
