@@ -606,3 +606,51 @@ ALIM_UYARISI = (
     "(ayrıntı: Sistem Performansı sekmesi). Karar verirken tek başına kullanma."
 )
 SATIS_IYI = "Satış uyarılarından {adlar} ise kısa vadede iki dönemde de rastgele bir günden daha iyi uyardı."
+IKI_SISTEM = (
+    "Hem orijinal Bluetsman (8 koşul) hem yeni sistem, 2025 sonrası test döneminde aynı kurallarla rastgele "
+    "girişten kötü sonuç verdi; ikisi arasındaki fark istatistiksel olarak anlamlı değil."
+)
+KARSILASTIRMA_LINK = "Orijinal ve yeni sistemin karşılaştırma raporu ↗"
+KARSILASTIRMA_URL = GITHUB_URL + "/blob/main/docs/bluetsman_karsilastirma.md"
+
+# ---------------------------------------------------------------------------
+# İleri Test (Sinyal Günlüğü)
+# ---------------------------------------------------------------------------
+
+TAB_ILERI = "İleri Test"
+IT_TITLE = "İleri Test"
+IT_CAPTION = (
+    "Sinyal Günlüğü'ne (her iş günü 18:45'te otomatik) kaydedilen sinyallerin gerçek zamanlı sonucu, Aşama 1 "
+    "kurallarıyla: ertesi gün açılıştan giriş, stop/hedef/zaman aşımı, %0,2 maliyet. Geçmiş testlerden farklı "
+    "olarak kayıt anında gelecek bilinmez. Eğitim amaçlıdır, yatırım tavsiyesi değildir."
+)
+IT_EMPTY = "Sinyal Günlüğü henüz boş."
+IT_SINCE = "Günlük {ilk} tarihinde başladı, son kayıt {son}. Toplam {n} sinyal, {m} tanesi sonuçlandı."
+IT_NOT_ENOUGH_TITLE = "Henüz yeterli veri yok"
+IT_NOT_ENOUGH = (
+    "Anlamlı bir ölçüm için en az {min} sonuçlanmış sinyal gerekir; şu an {m}. Aşağıda günlükteki sinyaller ve "
+    "şimdiye kadarki durumları var."
+)
+IT_SUMMARY_TITLE = "Sonuçlar (vade ve türe göre)"
+IT_LOG_TITLE = "Günlükteki sinyaller"
+IT_COL_DATE = "Tarih"
+IT_COL_HORIZON = "Vade"
+IT_COL_TYPE = "Tür"
+IT_COL_CODE = "Hisse"
+IT_COL_SCORE = "Skor"
+IT_COL_GRADE = "Not"
+IT_COL_REF = "Giriş ref."
+IT_COL_STOP = "Stop"
+IT_COL_TARGET = "Hedef"
+IT_COL_RESULT = "Sonuç"
+IT_COL_DAYS = "Süre"
+IT_COL_R = "R"
+IT_COL_COUNT = "Sonuçlanan"
+IT_COL_OPEN = "Açık"
+IT_COL_HIT = "Hedef %"
+IT_COL_STOPPCT = "Stop %"
+IT_COL_EXP = "Beklenen getiri (R)"
+IT_COL_MEDIAN = "Hedefe medyan süre"
+IT_TYPES = {"AL": "Alım", "SAT": "SAT", "KAR_AL": "KAR AL", "CIK": "ÇIK", "FIRSAT": "FIRSAT"}
+IT_RESULTS = {"hedef": "Hedef", "stop": "Stop", "zaman": "Zaman aşımı", "acik": "Açık",
+              "gecersiz": "Geçersiz (açılış seviyelerin ötesinde)"}

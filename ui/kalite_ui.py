@@ -5,7 +5,16 @@ import streamlit as st
 import kalite
 from ui.components import callout
 from ui.format import fmt_num
-from ui_text import ALIM_UYARISI, KQ_GRADE, KQ_STATS, KQ_STATS_DAYS, SATIS_IYI
+from ui_text import (
+    ALIM_UYARISI,
+    IKI_SISTEM,
+    KARSILASTIRMA_LINK,
+    KARSILASTIRMA_URL,
+    KQ_GRADE,
+    KQ_STATS,
+    KQ_STATS_DAYS,
+    SATIS_IYI,
+)
 
 
 @st.cache_data(show_spinner=False)
@@ -47,8 +56,9 @@ def iyi_satis_turleri(vade: str = "kisa") -> list[str]:
 
 def alim_uyarisi() -> None:
     """Alım sinyali bölümlerinin üstündeki uyarı (TEST sonucu ve iyi çalışan satış uyarıları)."""
-    metin = ALIM_UYARISI
+    metin = f"{ALIM_UYARISI} {IKI_SISTEM}"
     iyi = iyi_satis_turleri()
     if iyi:
         metin += " " + SATIS_IYI.format(adlar=" ve ".join(iyi))
     callout("warn", None, metin)
+    st.caption(f"[{KARSILASTIRMA_LINK}]({KARSILASTIRMA_URL})")

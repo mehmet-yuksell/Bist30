@@ -9,7 +9,7 @@ import streamlit as st
 
 import takip
 from config import BIST100_TICKERS
-from tabs import hisse_detay, karsilastirma, performans, tarama
+from tabs import hisse_detay, ileri_test, karsilastirma, performans, tarama
 from tabs import takip as takip_sekmesi
 from ui import takip_deposu
 from ui.components import footer, header_html
@@ -19,6 +19,7 @@ from ui.viewport import detect_device
 from ui_text import (
     APP_TITLE,
     TAB_HISSE_DETAY,
+    TAB_ILERI,
     TAB_KARSILASTIRMA,
     TAB_PERFORMANS,
     TAB_TAKIP,
@@ -55,12 +56,13 @@ toplu_kodlar = tuple(BIST100_TICKERS) + ("XU100",) + takip.ekstra_kodlar(takip_l
 ctx = {"last_dates": [], "vade": vade, "tickers": toplu_kodlar}
 
 # Tarama ilk sekmedir: Bluetsman sinyali veren hisseler açılışta görünür.
-tab1, tab_takip, tab2, tab3, tab4 = st.tabs([
+tab1, tab_takip, tab2, tab3, tab4, tab_ileri = st.tabs([
     f":material/grid_view: {TAB_TARAMA}",
     f":material/star: {TAB_TAKIP}",
     f":material/candlestick_chart: {TAB_HISSE_DETAY}",
     f":material/compare_arrows: {TAB_KARSILASTIRMA}",
     f":material/monitoring: {TAB_PERFORMANS}",
+    f":material/fact_check: {TAB_ILERI}",
 ])
 
 with tab1:
@@ -77,6 +79,9 @@ with tab3:
 
 with tab4:
     performans.render(device, ctx)
+
+with tab_ileri:
+    ileri_test.render(device, ctx)
 
 if ctx["last_dates"]:
     header.html(header_html(fmt_date(max(ctx["last_dates"]))))
