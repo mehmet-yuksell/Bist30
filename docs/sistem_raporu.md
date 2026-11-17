@@ -386,6 +386,51 @@ Her kriter için 3 eşik denendi. Seçim yalnızca GELİŞTİRME'de: her yıl i�
 | GELİŞTİRME | 800 | 0,002 | 13 | -0,070 | 0,76 | 3,93 | ✔ |
 | TEST | 338 | -0,104 | 6 | -0,013 | -1,84 | 0,48 | ✘ |
 
+## Aşama 4 — Sinyal kalitesi notu (kalibrasyon)
+
+Skora dayalı tahmin yerine geçmiş performansa dayalı not. GELİŞTİRME'deki AL sinyalleri skor aralığına (60-69, 70-79, 80+) ve vadenin kabul edilmiş alım filtrelerinden geçip geçmediğine göre gruplandı; gruplar GELİŞTİRME beklenen getirisine göre A, B, C notu aldı (grup 3'ten fazlaysa eşit dilimler). Notlar TEST'te doğrulandı: not ortalamaları TEST'te de A > B > C ise not sistemi geçerli, değilse panelde not gösterilmez. Makine öğrenmesi kullanılmadı.
+
+Paneldeki "bu kalitedeki sinyallerin geçmişte %X'i hedefe ulaştı" satırı grubun 2021'den bugüne tüm sinyallerinden hesaplanır (betimleyicidir; not ise yalnızca GELİŞTİRME'den belirlenir).
+
+### Kısa vade (günlük)
+
+Gruplama: yalnızca skor aralığı (bu vadede kabul edilen filtre yok).
+
+| Grup | Not | GEL sinyal | GEL hedef % | GEL stop % | GEL beklenen R | TEST sinyal | TEST hedef % | TEST stop % | TEST beklenen R |
+|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 70-79 | A | 175 | 50,3 | 43,4 | 0,438 | 119 | 37,0 | 58,8 | 0,004 |
+| 60-69 | B | 245 | 44,1 | 41,2 | 0,417 | 160 | 28,7 | 63,1 | -0,155 |
+| 80+ | C | 158 | 40,5 | 51,9 | 0,236 | 71 | 25,4 | 71,8 | -0,339 |
+
+| Not | GEL sinyal | GEL beklenen R | TEST sinyal | TEST beklenen R |
+|:---:|---:|---:|---:|---:|
+| A | 175 | 0,438 | 119 | 0,004 |
+| B | 245 | 0,417 | 160 | -0,155 |
+| C | 158 | 0,236 | 71 | -0,339 |
+
+**TEST doğrulaması:** A > B > C sıralaması TEST'te de tutuyor; not sistemi panelde kullanılır.
+
+### Orta vade (haftalık)
+
+Gruplama: skor aralığı ve F1 (EMA 100), F5 (EMA 300), F8 (%8,5).
+
+| Grup | Not | GEL sinyal | GEL hedef % | GEL stop % | GEL beklenen R | TEST sinyal | TEST hedef % | TEST stop % | TEST beklenen R |
+|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 80+ · filtre ✗ | A | 1 | 100,0 | 0,0 | 1,517 | 6 | 33,3 | 50,0 | -0,009 |
+| 80+ · filtre ✓ | A | 37 | 51,4 | 27,0 | 0,745 | 20 | 20,0 | 65,0 | -0,256 |
+| 70-79 · filtre ✓ | B | 29 | 44,8 | 31,0 | 0,726 | 23 | 21,7 | 43,5 | 0,129 |
+| 60-69 · filtre ✓ | B | 37 | 43,2 | 21,6 | 0,684 | 36 | 25,0 | 52,8 | 0,021 |
+| 60-69 · filtre ✗ | C | 4 | 25,0 | 50,0 | -0,009 | 6 | 0,0 | 50,0 | -0,723 |
+| 70-79 · filtre ✗ | C | 3 | 0,0 | 66,7 | -0,401 | 2 | 0,0 | 50,0 | -0,530 |
+
+| Not | GEL sinyal | GEL beklenen R | TEST sinyal | TEST beklenen R |
+|:---:|---:|---:|---:|---:|
+| A | 38 | 0,766 | 26 | -0,199 |
+| B | 66 | 0,702 | 59 | 0,063 |
+| C | 7 | -0,177 | 8 | -0,675 |
+
+**TEST doğrulaması:** sıralama TEST'te tutmuyor; not sistemi kullanılmaz, panelde yalnızca tarihsel istatistik gösterilir.
+
 ## Aşama 3d — Portföy ve risk yönetimi
 
 Sinyal bazlı değil, portföy bazlı test. Her dönem **100.000 TL** ile, pozisyonsuz başlar (TEST, GELİŞTİRME'den pozisyon devralmaz). İşlemlerin giriş/çıkış fiyatları önceki aşamalardaki simülasyonun aynısıdır; portföy katmanı yalnızca hangi işlemin ve kaç adet alınacağına karar verir. Kurallar `portfoy.py` dosyasının başında.
@@ -393,7 +438,7 @@ Sinyal bazlı değil, portföy bazlı test. Her dönem **100.000 TL** ile, pozis
 - **Risk:** işlem başına sermayenin %1'i (adet = sermaye × risk / (giriş − stop)); tek pozisyon en fazla %20; kaldıraç yok; en fazla 6 açık pozisyon, aynı hissede tek pozisyon.
 - **Oynaklık:** XU100'ün 20 günlük gerçekleşen oynaklığı son 1 yılın %80'lik diliminin üstündeyse risk %0,5.
 - **Piyasa filtresi:** XU100 < 50 günlük EMA iken trend sistemine yeni alım yok; FIRSAT'a izin var, risk %0,5.
-- **Sıralama (varsayım):** yer yetmezse trend sinyalleri alım skoruna göre önce, FIRSAT sinyalleri sonra (RSI(2) düşük olan önce). Not sistemi (Aşama 4) gelince yeniden ele alınacak.
+- **Sıralama:** yer yetmezse trend sinyalleri önce, FIRSAT sinyalleri sonra. Trend sinyalleri kendi içinde "not ve skora göre": Aşama 4'te not sistemi TEST'te doğrulandıysa önce not (A > B > C), sonra skor; doğrulanmadıysa yalnızca skor. FIRSAT'ın skoru yok; RSI(2) düşük olan önce (varsayım).
 - **Trend sistemi** kısa vade (günlük) AL'dır; haftalık orta vade bu günlük portföye dahil değil. **Destek** sistemi tanımlanmadığı için "trend + Fırsat + Destek" kombinasyonu yok.
 - **Metrikler:** Sharpe ve Sortino risksiz getiri 0 ile hesaplandı. TL mevduat faizi bu dönemde çok yüksek olduğu için bu oranlar olduğundan iyi görünür; asıl kıyas XU100 ve eşit ağırlıklı al-tut'tur. XU100 fiyat endeksidir (temettü içermez); hisseler ve eşit ağırlıklı al-tut temettü düzeltmelidir.
 - **Karar ölçütü:** önce TEST'te getiri / maksimum düşüş oranı, sonra toplam getiri.
@@ -402,27 +447,27 @@ Sinyal bazlı değil, portföy bazlı test. Her dönem **100.000 TL** ile, pozis
 
 | Portföy | İşlem | Toplam getiri % | Yıllık getiri % | Yıllık oynaklık % | Sharpe | Sortino | Maks. düşüş % | Düşüş süresi (gün) | Getiri / maks. düşüş |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Sadece trend | 142 | -20,3 | -11,4 | 13,8 | -0,81 | -1,03 | -22,3 | 418 | **-0,51** |
+| Sadece trend | 147 | -17,2 | -9,6 | 13,7 | -0,67 | -0,87 | -19,6 | 418 | **-0,49** |
 | Sadece Fırsat | 159 | -20,7 | -11,7 | 5,8 | -2,10 | -2,26 | -21,2 | 468 | **-0,55** |
-| Trend + Fırsat | 283 | -25,0 | -14,3 | 14,4 | -1,00 | -1,25 | -27,9 | 418 | **-0,51** |
+| Trend + Fırsat | 285 | -28,7 | -16,6 | 14,6 | -1,17 | -1,45 | -29,5 | 417 | **-0,56** |
 | XU100 al-tut | — | 18,1 | 9,4 | 25,0 | 0,48 | 0,69 | -28,9 | 130 | **0,32** |
 | BIST 100 eşit ağırlıklı al-tut | — | 21,1 | 10,8 | 24,2 | 0,55 | 0,76 | -26,0 | 130 | **0,42** |
 
-Günlük getiri korelasyonu (TEST): trend–Fırsat 0,16, trend–XU100 0,48, Fırsat–XU100 0,31.
+Günlük getiri korelasyonu (TEST): trend–Fırsat 0,15, trend–XU100 0,46, Fırsat–XU100 0,31.
 
 **GELİŞTİRME** (04.01.2021 – 31.12.2024)
 
 | Portföy | İşlem | Toplam getiri % | Yıllık getiri % | Yıllık oynaklık % | Sharpe | Sortino | Maks. düşüş % | Düşüş süresi (gün) | Getiri / maks. düşüş |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Sadece trend | 260 | 64,6 | 13,4 | 11,6 | 1,14 | 1,63 | -16,4 | 258 | **0,82** |
+| Sadece trend | 256 | 64,2 | 13,3 | 11,5 | 1,15 | 1,66 | -16,3 | 263 | **0,82** |
 | Sadece Fırsat | 380 | -4,6 | -1,2 | 6,3 | -0,16 | -0,19 | -15,1 | 298 | **-0,08** |
-| Trend + Fırsat | 597 | 55,7 | 11,8 | 12,9 | 0,93 | 1,29 | -18,8 | 255 | **0,63** |
+| Trend + Fırsat | 594 | 73,3 | 14,9 | 13,0 | 1,13 | 1,60 | -16,9 | 253 | **0,88** |
 | XU100 al-tut | — | 557,4 | 61,0 | 29,3 | 1,77 | 2,60 | -22,9 | 154 | **2,67** |
 | BIST 100 eşit ağırlıklı al-tut | — | 800,6 | 74,1 | 29,3 | 2,04 | 3,04 | -29,0 | 178 | **2,56** |
 
-Günlük getiri korelasyonu (GELİŞTİRME): trend–Fırsat 0,15, trend–XU100 0,42, Fırsat–XU100 0,40.
+Günlük getiri korelasyonu (GELİŞTİRME): trend–Fırsat 0,11, trend–XU100 0,41, Fırsat–XU100 0,40.
 
-**Karar (TEST, önce getiri / maks. düşüş, sonra toplam getiri):** Sadece trend > Trend + Fırsat > Sadece Fırsat. En iyi kombinasyon **Sadece trend**: getiri/düşüş -0,51, toplam getiri %-20,3. Aynı dönemde XU100 al-tut: getiri/düşüş 0,32, toplam %18,1.
+**Karar (TEST, önce getiri / maks. düşüş, sonra toplam getiri):** Sadece trend > Sadece Fırsat > Trend + Fırsat. En iyi kombinasyon **Sadece trend**: getiri/düşüş -0,49, toplam getiri %-17,2. Aynı dönemde XU100 al-tut: getiri/düşüş 0,32, toplam %18,1.
 
 ## Sınırlamalar
 

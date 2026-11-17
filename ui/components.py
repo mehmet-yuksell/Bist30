@@ -358,19 +358,30 @@ def status_bar(items: list[tuple[str, str, str | None]]) -> None:
     render(f'<div class="ui-status" role="status">{parts}</div>')
 
 
+GRADE_TONES = {"A": "up", "B": "neutral", "C": "warn"}
+
+
+def grade_badge(grade: str | None, label: str) -> str:
+    """Sinyal kalitesi notu rozeti ('Not A'); not yoksa boş."""
+    return badge(label, GRADE_TONES.get(grade, "neutral")) if grade else ""
+
+
 def signal_cards(cards: list[dict]) -> None:
     """Bugünün AL sinyali kartları.
 
-    Her kart: ticker, name, score, price, change (%), badge (str | None), rows [(etiket, değer)].
+    Her kart: ticker, name, score, price, change (%), badge (str | None), rows [(etiket, değer)],
+    isteğe bağlı grade ('A'|'B'|'C'), grade_label ('Not A') ve stats (tarihsel istatistik cümlesi).
     """
     html_cards = []
     for card in cards:
         color = score_color(card["score"])
         badge_html = badge(card["badge"], "warn") if card.get("badge") else ""
+        badge_html += " " + grade_badge(card.get("grade"), card.get("grade_label", ""))
         kv = "".join(
             f'<div class="ui-kv"><span>{escape(label)}</span><b>{escape(value)}</b></div>'
             for label, value in card["rows"]
         )
+        stats = f'<p class="ui-signal-card-stats">{escape(card["stats"])}</p>' if card.get("stats") else ""
         html_cards.append(
             '<article class="ui-card ui-signal-card" role="listitem">'
             '<div class="ui-signal-card-top">'
@@ -379,17 +390,18 @@ def signal_cards(cards: list[dict]) -> None:
             f'<div class="ui-signal-card-score num" style="color:{color}">{card["score"]:.0f}</div></div>'
             f'<div class="ui-signal-card-price"><span class="num">{escape(card["price"])}</span>'
             f"{change_badge(card['change'])}</div>"
-            f"{_bar(card['score'] / 100, color)}{kv}</article>"
+            f"{_bar(card['score'] / 100, color)}{kv}{stats}</article>"
         )
     render(f'<div class="ui-signal-cards" role="list">{"".join(html_cards)}</div>')
 
 
 def recent_signal_list(rows: list[dict]) -> None:
-    """Son günlerin AL sinyalleri. Her satır: ticker, name, when, price_label, change (%)."""
+    """Son günlerin AL sinyalleri. Her satır: ticker, name, when, price_label, change (%), isteğe bağlı
+    grade / grade_label."""
     html_rows = "".join(
         '<div class="ui-list-row" role="listitem">'
         f'<div class="ui-list-main"><div class="ui-list-ticker">{escape(row["ticker"])} '
-        f'{badge(row["when"], "accent")}</div>'
+        f'{badge(row["when"], "accent")} {grade_badge(row.get("grade"), row.get("grade_label", ""))}</div>'
         f'<div class="ui-list-name">{escape(row["name"])}</div>'
         f'<div class="ui-list-meta">{escape(row["price_label"])}</div></div>'
         f'<div class="ui-list-side">{change_badge(row["change"])}'

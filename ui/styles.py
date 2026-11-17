@@ -355,6 +355,7 @@ footer {{
 .ui-signal-card-score {{ font-size: 28px; font-weight: 700; line-height: 1; }}
 .ui-signal-card-price {{ display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--fs-md); font-weight: 650; color: var(--text-1); }}
 .ui-signal-card .ui-score-bar {{ margin-top: 0; }}
+.ui-signal-card-stats {{ font-size: var(--fs-xs) !important; color: var(--text-3); line-height: 1.45; margin: 2px 0 0; }}
 .ui-list-auto {{ max-height: none !important; }}
 .ui-list-ticker .ui-badge, .ui-list-signal .ui-badge {{ font-size: 11px; padding: 1px 8px; vertical-align: middle; }}
 .ui-signal-head {{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }}

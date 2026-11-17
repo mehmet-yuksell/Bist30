@@ -26,7 +26,7 @@ from signals import (
     describe_price_vs_ma,
     describe_rsi,
 )
-from ui import charts
+from ui import charts, kalite_ui
 from ui import theme as t
 from ui.components import (
     badge,
@@ -353,9 +353,11 @@ def _render_alim_sistemi(df_tl: pd.DataFrame, sonuc: pd.DataFrame | None) -> Non
         score=_mark(score >= motor_veri.AYAR.min_skor),
     )
     levels = BL_SIGNAL_LEVELS.format(stop=fmt_num(signal["stop"], 2), target=fmt_num(signal["hedef"], 2)) if signal else ""
+    kq = kalite_ui.ozet(signal["skor"]) if signal else {"label": "", "stats": None}
+    kalite_satiri = " · ".join(x for x in (kq["label"], kq["stats"]) if x)
     score_card(
         title=title,
-        subtitle_lines=[gates, levels],
+        subtitle_lines=[gates, levels, kalite_satiri],
         score=score,
         score_label=BL_SCORE_LABEL,
         items=[(BL_ITEM_LABELS[k], float(kalemler[k]), m) for k, m in motor.ALIM_KALEMLERI.items()],

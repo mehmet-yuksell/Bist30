@@ -14,15 +14,15 @@
  "metrikler": {
   "GELİŞTİRME": {
    "Sadece trend": {
-    "toplam_getiri": 0.6461918038742063,
-    "yillik_getiri": 0.13398595940448144,
-    "yillik_oynaklik": 0.1160455440233726,
-    "sharpe": 1.141979050174577,
-    "sortino": 1.630847254196319,
-    "max_dusus": -0.16423016286342573,
-    "max_dusus_suresi": 258.0,
-    "getiri_dusus_orani": 0.8158425776871727,
-    "islem": 260
+    "toplam_getiri": 0.6424282651296205,
+    "yillik_getiri": 0.13333142837925105,
+    "yillik_oynaklik": 0.11484093826474806,
+    "sharpe": 1.1476469932977749,
+    "sortino": 1.661630698469406,
+    "max_dusus": -0.162608421255246,
+    "max_dusus_suresi": 263.0,
+    "getiri_dusus_orani": 0.8199540180638066,
+    "islem": 256
    },
    "Sadece Fırsat": {
     "toplam_getiri": -0.046272836077448476,
@@ -36,15 +36,15 @@
     "islem": 380
    },
    "Trend + Fırsat": {
-    "toplam_getiri": 0.5574026550604076,
-    "yillik_getiri": 0.11823624058485138,
-    "yillik_oynaklik": 0.12937236790622506,
-    "sharpe": 0.9288851756021822,
-    "sortino": 1.2905907794575786,
-    "max_dusus": -0.18840197117909596,
-    "max_dusus_suresi": 255.0,
-    "getiri_dusus_orani": 0.6275743286807511,
-    "islem": 597
+    "toplam_getiri": 0.7326056674229686,
+    "yillik_getiri": 0.14871566791706892,
+    "yillik_oynaklik": 0.1303494208256609,
+    "sharpe": 1.1292409017535756,
+    "sortino": 1.6017830113467422,
+    "max_dusus": -0.16897533669690012,
+    "max_dusus_suresi": 253.0,
+    "getiri_dusus_orani": 0.8801028056764756,
+    "islem": 594
    },
    "XU100 al-tut": {
     "toplam_getiri": 5.573892904159133,
@@ -71,15 +71,15 @@
   },
   "TEST": {
    "Sadece trend": {
-    "toplam_getiri": -0.20251098099906784,
-    "yillik_getiri": -0.1144861310473605,
-    "yillik_oynaklik": 0.1376417957426939,
-    "sharpe": -0.8136805060497878,
-    "sortino": -1.0285899335292537,
-    "max_dusus": -0.2228576097768571,
+    "toplam_getiri": -0.17192544115297392,
+    "yillik_getiri": -0.09639711142104324,
+    "yillik_oynaklik": 0.13719676700133,
+    "sharpe": -0.6695992580500543,
+    "sortino": -0.8653699979013683,
+    "max_dusus": -0.19565218281739993,
     "max_dusus_suresi": 418.0,
-    "getiri_dusus_orani": -0.5137187424831182,
-    "islem": 142
+    "getiri_dusus_orani": -0.492696324839931,
+    "islem": 147
    },
    "Sadece Fırsat": {
     "toplam_getiri": -0.2072254871871375,
@@ -93,15 +93,15 @@
     "islem": 159
    },
    "Trend + Fırsat": {
-    "toplam_getiri": -0.2502562470129672,
-    "yillik_getiri": -0.14337844718585446,
-    "yillik_oynaklik": 0.14411955631783732,
-    "sharpe": -1.0008764359094564,
-    "sortino": -1.2524475305492884,
-    "max_dusus": -0.2785509307037567,
-    "max_dusus_suresi": 418.0,
-    "getiri_dusus_orani": -0.5147297365821395,
-    "islem": 283
+    "toplam_getiri": -0.28735773680479426,
+    "yillik_getiri": -0.16642262078199233,
+    "yillik_oynaklik": 0.14598108793519363,
+    "sharpe": -1.1727493114774195,
+    "sortino": -1.4466670292016264,
+    "max_dusus": -0.29506731025256105,
+    "max_dusus_suresi": 417.0,
+    "getiri_dusus_orani": -0.5640157855492155,
+    "islem": 285
    },
    "XU100 al-tut": {
     "toplam_getiri": 0.18068832986564898,

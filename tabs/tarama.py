@@ -28,9 +28,11 @@ from ui.components import (
     stock_list,
 )
 from ui.format import arrow, direction, fmt_date, fmt_num, fmt_pct
+from ui import kalite_ui
 from ui.viewport import MOBILE
 from ui import theme as t
 from ui_text import (
+    KQ_CAPTION,
     BL_DAYS_AGO,
     BL_TODAY,
     LIVE_CLOSED,
@@ -46,6 +48,7 @@ from ui_text import (
     TR_AS_OF,
     TR_COL_CHANGE,
     TR_COL_COMPANY,
+    TR_COL_GRADE,
     TR_COL_PRICE,
     TR_COL_RSI,
     TR_COL_SCORE,
@@ -139,6 +142,7 @@ def _scan(data_key: str, _histories: dict) -> dict:
             TR_COL_RSI: round(float(last["RSI"]), 1) if last is not None else None,
             TR_COL_VOLUME: round(float(last["Hacim_kat"]), 2) if last is not None else None,
             "_days_since": days_since,
+            "_sinyal_skor": signals[0]["skor"] if signals else None,
         })
 
         for signal in signals:
@@ -186,20 +190,24 @@ def _render_today(scan: dict, provisional: bool, is_open: bool) -> None:
     if today:
         if provisional:
             st.caption(TS_PROVISIONAL_TITLE)
-        signal_cards([
-            {
+        kartlar = []
+        for s in today:
+            kq = kalite_ui.ozet(s["score"])
+            kartlar.append({
                 "ticker": s["ticker"], "name": s["name"], "score": s["score"],
                 "price": fmt_num(s["price"], 2), "change": s["change"],
                 "badge": TS_PROVISIONAL_BADGE if provisional else None,
+                "grade": kq["grade"], "grade_label": kq["label"], "stats": kq["stats"],
                 "rows": [
                     (TS_STOP, fmt_num(s["stop"], 2)),
                     (TS_TARGET, fmt_num(s["target"], 2)),
                     (TS_RSI, fmt_num(s["rsi"], 1)),
                     (TS_VOLUME, TS_VOLUME_VALUE.format(ratio=fmt_num(s["volume_ratio"], 2))),
                 ],
-            }
-            for s in today
-        ])
+            })
+        signal_cards(kartlar)
+        if any(k["grade"] for k in kartlar):
+            st.caption(KQ_CAPTION)
     else:
         callout("empty", TS_NONE, None)
 
@@ -213,6 +221,8 @@ def _render_today(scan: dict, provisional: bool, is_open: bool) -> None:
                     "when": BL_DAYS_AGO.format(days=s["once"]),
                     "price_label": f"{TS_SIGNAL_PRICE} {fmt_num(s['fiyat'], 2)} · skor {s['skor']:.0f}",
                     "change": s["degisim"], "since_label": TS_SINCE,
+                    "grade": kalite_ui.ozet(s["skor"])["grade"],
+                    "grade_label": kalite_ui.ozet(s["skor"])["label"],
                 }
                 for s in scan["recent"]
             ])
@@ -321,7 +331,8 @@ def _render_results(table_df: pd.DataFrame, device: str) -> None:
                     score=NO_SIGNAL if pd.isna(row[TR_COL_SCORE]) else int(row[TR_COL_SCORE]),
                     rsi=fmt_num(row[TR_COL_RSI], 1),
                 ),
-                "signal": None if row[TR_COL_SIGNAL] == NO_SIGNAL else row[TR_COL_SIGNAL],
+                "signal": None if row[TR_COL_SIGNAL] == NO_SIGNAL else " · ".join(
+                    x for x in (row[TR_COL_SIGNAL], row[TR_COL_GRADE] if row[TR_COL_GRADE] != NO_SIGNAL else "") if x),
             }
             for _, row in ordered.iterrows()
         ])
@@ -329,7 +340,7 @@ def _render_results(table_df: pd.DataFrame, device: str) -> None:
 
     columns = [
         TR_COL_TICKER, TR_COL_COMPANY, TR_COL_PRICE, TR_COL_CHANGE,
-        TR_COL_SCORE, TR_COL_SIGNAL, TR_COL_RSI, TR_COL_VOLUME,
+        TR_COL_SCORE, TR_COL_SIGNAL, TR_COL_GRADE, TR_COL_RSI, TR_COL_VOLUME,
     ]
     st.dataframe(
         _style_table(ordered[columns]),
@@ -371,6 +382,11 @@ def render(device: str, ctx: dict) -> None:
     if table_df.empty:
         error_state(TR_NO_DATA, key="tr_retry_empty")
         return
+    # Son sinyalin kalite notu (önbellekli tarama dışında: kalibrasyon dosyası değişebilir)
+    table_df[TR_COL_GRADE] = [
+        (kalite_ui.ozet(skor)["grade"] if pd.notna(skor) else None) or NO_SIGNAL
+        for skor in table_df["_sinyal_skor"]
+    ]
     ctx["last_dates"].append(last_date)
 
     now = market.now()

@@ -26,6 +26,7 @@ warnings.filterwarnings("ignore")
 import evaluation as ev  # noqa: E402
 import filtreler  # noqa: E402
 import firsat  # noqa: E402
+import kalite  # noqa: E402
 import portfoy  # noqa: E402
 import motor_veri  # noqa: E402
 import tarayici_motor as motor  # noqa: E402
@@ -323,7 +324,10 @@ def rapor_yaz(sonuc: dict, endeks: pd.DataFrame, hisseler: dict, veri_bitis: pd.
     asama3_satirlari, firsat_karar = asama3(sonuc)
     out += asama3_satirlari
     tum_ozet["firsat"] = firsat_karar
-    asama3d_satirlari, portfoy_ozet = asama3d(sonuc, hisseler, endeks)
+    asama4_satirlari, kalite_ozet = asama4(sonuc, kabuller)
+    out += asama4_satirlari
+    tum_ozet["kalite"] = kalite_ozet
+    asama3d_satirlari, portfoy_ozet = asama3d(sonuc, hisseler, endeks, kalite_ozet)
     out += asama3d_satirlari
     tum_ozet["portfoy"] = portfoy_ozet
     out += sinirlamalar()
@@ -725,9 +729,23 @@ def kapanis_tablosu(hisseler: dict, endeks: pd.DataFrame) -> pd.DataFrame:
     return tablo.reindex(takvim)
 
 
-def asama3d(sonuc: dict, hisseler: dict, endeks: pd.DataFrame) -> tuple[list[str], dict]:
+def not_oncelikli(t: pd.DataFrame, notlar: dict[str, str]) -> pd.DataFrame:
+    """Trend adaylarının önceliği: önce not (A > B > C), sonra skor."""
+    if t.empty or not notlar:
+        return t
+    t = t.copy()
+    sira = {n: len(kalite.NOTLAR) - i for i, n in enumerate(kalite.NOTLAR)}  # A=3, B=2, C=1
+    not_puani = [sira.get(notlar.get(kalite.grup_anahtari(s, None)), 0) for s in t["oncelik"]]
+    t["oncelik"] = np.array(not_puani) * 1000 + t["oncelik"]
+    return t
+
+
+def asama3d(sonuc: dict, hisseler: dict, endeks: pd.DataFrame, kalite_ozet: dict) -> tuple[list[str], dict]:
     sv = sonuc["kisa"]
-    adaylar = {"trend": _adaylar(sv["AL"], "trend"), "firsat": _adaylar(sv["F_FIRSAT"], "firsat")}
+    kisa_not = kalite_ozet.get("kisa", {})
+    notlar = kisa_not.get("notlar", {}) if kisa_not.get("gecerli") else {}
+    adaylar = {"trend": not_oncelikli(_adaylar(sv["AL"], "trend"), notlar),
+               "firsat": _adaylar(sv["F_FIRSAT"], "firsat")}
     kapanis = kapanis_tablosu(hisseler, endeks)
     rejim_df = portfoy.rejim(endeks)
     veri_sonu = kapanis.index[-1]
@@ -758,8 +776,9 @@ def asama3d(sonuc: dict, hisseler: dict, endeks: pd.DataFrame) -> tuple[list[str
         "fazla %20; kaldıraç yok; en fazla 6 açık pozisyon, aynı hissede tek pozisyon.",
         "- **Oynaklık:** XU100'ün 20 günlük gerçekleşen oynaklığı son 1 yılın %80'lik diliminin üstündeyse risk %0,5.",
         "- **Piyasa filtresi:** XU100 < 50 günlük EMA iken trend sistemine yeni alım yok; FIRSAT'a izin var, risk %0,5.",
-        "- **Sıralama (varsayım):** yer yetmezse trend sinyalleri alım skoruna göre önce, FIRSAT sinyalleri sonra "
-        "(RSI(2) düşük olan önce). Not sistemi (Aşama 4) gelince yeniden ele alınacak.",
+        "- **Sıralama:** yer yetmezse trend sinyalleri önce, FIRSAT sinyalleri sonra. Trend sinyalleri kendi içinde "
+        "\"not ve skora göre\": Aşama 4'te not sistemi TEST'te doğrulandıysa önce not (A > B > C), sonra skor; "
+        "doğrulanmadıysa yalnızca skor. FIRSAT'ın skoru yok; RSI(2) düşük olan önce (varsayım).",
         "- **Trend sistemi** kısa vade (günlük) AL'dır; haftalık orta vade bu günlük portföye dahil değil. "
         "**Destek** sistemi tanımlanmadığı için \"trend + Fırsat + Destek\" kombinasyonu yok.",
         "- **Metrikler:** Sharpe ve Sortino risksiz getiri 0 ile hesaplandı. TL mevduat faizi bu dönemde çok "
@@ -831,6 +850,79 @@ def performans_disa_aktar(seriler: dict, ozetler: dict, islem_sayisi: dict, veri
     PERFORMANS_JSON.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+# ---------------------------------------------------------------------------
+# Aşama 4 — sinyal kalitesi notu (kalibrasyon)
+# ---------------------------------------------------------------------------
+
+def asama4(sonuc: dict, kabuller: dict) -> tuple[list[str], dict]:
+    import json
+
+    out = [
+        "## Aşama 4 — Sinyal kalitesi notu (kalibrasyon)",
+        "",
+        "Skora dayalı tahmin yerine geçmiş performansa dayalı not. GELİŞTİRME'deki AL sinyalleri skor aralığına "
+        "(60-69, 70-79, 80+) ve vadenin kabul edilmiş alım filtrelerinden geçip geçmediğine göre gruplandı; gruplar "
+        "GELİŞTİRME beklenen getirisine göre A, B, C notu aldı (grup 3'ten fazlaysa eşit dilimler). Notlar TEST'te "
+        "doğrulandı: not ortalamaları TEST'te de A > B > C ise not sistemi geçerli, değilse panelde not gösterilmez. "
+        "Makine öğrenmesi kullanılmadı.",
+        "",
+        "Paneldeki \"bu kalitedeki sinyallerin geçmişte %X'i hedefe ulaştı\" satırı grubun 2021'den bugüne tüm "
+        "sinyallerinden hesaplanır (betimleyicidir; not ise yalnızca GELİŞTİRME'den belirlenir).",
+        "",
+    ]
+    kalibrasyon, ozet = {}, {}
+    for vade, bilgi in VADELER.items():
+        t = sonuc[vade]["AL"].copy()
+        kabul = {f: e for f, e in kabuller.get(vade, {}).items() if f != "F7"}
+        filtreli = bool(kabul)
+        if filtreli:
+            t["filtre"] = np.logical_and.reduce([t[f"{f}|{e}"].to_numpy(dtype=bool) for f, e in kabul.items()])
+        t["grup"] = [kalite.grup_anahtari(skor, bool(f) if filtreli else None)
+                     for skor, f in zip(t["oncelik"], t["filtre"] if filtreli else [None] * len(t))]
+        gel, test = _donem(t, "GELİŞTİRME"), _donem(t, "TEST")
+        gruplar = sorted(g for g in t["grup"].dropna().unique())
+        gel_r = {g: ev.ozet(gel[gel["grup"] == g]).get("beklenen_r", np.nan) for g in gruplar}
+        notlar = kalite.not_ata(gel_r)
+        t["not"] = t["grup"].map(notlar)
+        gel, test = _donem(t, "GELİŞTİRME"), _donem(t, "TEST")
+        not_r = {d: {n: ev.ozet(x[x["not"] == n]).get("beklenen_r", np.nan) for n in kalite.NOTLAR}
+                 for d, x in (("GELİŞTİRME", gel), ("TEST", test))}
+        gecerli = kalite.sira_tutuyor_mu(not_r["TEST"])
+        ozet[vade] = {"gecerli": gecerli, "notlar": notlar}
+
+        filtre_metni = (" ve " + ", ".join(f"{f} ({e})" for f, e in kabul.items())) if filtreli else ""
+        out += [f"### {bilgi['ad']}", "",
+                f"Gruplama: skor aralığı{filtre_metni}." if filtreli else "Gruplama: yalnızca skor aralığı "
+                "(bu vadede kabul edilen filtre yok).", "",
+                "| Grup | Not | GEL sinyal | GEL hedef % | GEL stop % | GEL beklenen R | TEST sinyal | TEST hedef % | "
+                "TEST stop % | TEST beklenen R |",
+                "|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+        for g in sorted(gruplar, key=lambda x: (notlar.get(x, "Z"), -gel_r.get(x, 0))):
+            a, b = ev.ozet(gel[gel["grup"] == g]), ev.ozet(test[test["grup"] == g])
+            out.append(f"| {g} | {notlar.get(g, '—')} | {a.get('sinyal', 0)} | {_f(a.get('hedef_pct'))} | "
+                       f"{_f(a.get('stop_pct'))} | {_f(a.get('beklenen_r'), 3)} | {b.get('sinyal', 0)} | "
+                       f"{_f(b.get('hedef_pct'))} | {_f(b.get('stop_pct'))} | {_f(b.get('beklenen_r'), 3)} |")
+        out += ["", "| Not | GEL sinyal | GEL beklenen R | TEST sinyal | TEST beklenen R |", "|:---:|---:|---:|---:|---:|"]
+        for n in kalite.NOTLAR:
+            a, b = ev.ozet(gel[gel["not"] == n]), ev.ozet(test[test["not"] == n])
+            out.append(f"| {n} | {a.get('sinyal', 0)} | {_f(a.get('beklenen_r'), 3)} | {b.get('sinyal', 0)} | "
+                       f"{_f(b.get('beklenen_r'), 3)} |")
+        karar = ("A > B > C sıralaması TEST'te de tutuyor; not sistemi panelde kullanılır." if gecerli else
+                 "sıralama TEST'te tutmuyor; not sistemi kullanılmaz, panelde yalnızca tarihsel istatistik gösterilir.")
+        out += ["", f"**TEST doğrulaması:** {karar}", ""]
+
+        donem_ici = t[t["tarih"] >= ev.GELISTIRME[0]]
+        kalibrasyon[vade] = {
+            "gecerli": bool(gecerli),
+            "filtreli": filtreli,
+            "gruplar": {g: {"not": notlar.get(g), **kalite.istatistik(donem_ici[donem_ici["grup"] == g])}
+                        for g in gruplar},
+        }
+    kalibrasyon["olusturma"] = f"{date.today():%Y-%m-%d}"
+    kalite.DOSYA.write_text(json.dumps(kalibrasyon, ensure_ascii=False, indent=1), encoding="utf-8")
+    return out, ozet
+
+
 def sinirlamalar() -> list[str]:
     return [
         "## Sınırlamalar",
@@ -863,6 +955,7 @@ def main() -> int:
     print("Kabul edilen filtreler:", ozet.pop("kabuller"))
     print("FIRSAT eleme:", ozet.pop("firsat"))
     print("Portföy:", ozet.pop("portfoy"))
+    print("Kalite notu:", ozet.pop("kalite"))
     for vade in ozet:
         for donem in ozet[vade]:
             s = ozet[vade][donem]

@@ -101,6 +101,9 @@ ayarını kullanır:
   metriklerini gösterir (100.000 TL, işlem başına %1 risk, en fazla 6 pozisyon; veri
   `data/sistem_performansi.*` dosyalarından okunur)
 - Sonuçlar olumsuz olsa da olduğu gibi raporlanır; TEST dönemi kuralların ayarlanmasında kullanılmaz
+- **Sinyal kalitesi notu (A/B/C):** alım sinyalleri skor aralığına göre 2021-2024 sonuçlarıyla notlanır,
+  2025 sonrasında doğrulanır; doğrulanan not ve grubun tarihsel isabeti sinyal kartlarında gösterilir
+  (`kalite.py`, `data/sinyal_kalitesi.json`)
 
 ### ⚖️ Karşılaştırma
 - Aynı ~630 hisselik liste arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
@@ -177,6 +180,7 @@ evaluation.py       Sinyal değerlendirme (işlem simülasyonu, metrikler, döne
 filtreler.py        Alım sinyali kalite filtreleri F1-F8
 firsat.py           FIRSAT sistemi (sert düşüş sonrası toparlanma) ve düşen bıçak elemesi
 portfoy.py          Portföy simülasyonu (pozisyon büyüklüğü, risk, rejim) ve metrikler
+kalite.py           Sinyal kalitesi notu (geçmiş performansa göre A/B/C, TEST doğrulaması)
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)

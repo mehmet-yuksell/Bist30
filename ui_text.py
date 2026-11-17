@@ -415,3 +415,17 @@ EXPLANATIONS["portfolio"] = (
     "yalnızca aşağı yönlü oynaklığı hesaba katar. Düşüş süresi, sermayenin bir önceki tepesinin altında "
     "kaldığı en uzun işlem günü sayısıdır."
 )
+
+# ---------------------------------------------------------------------------
+# Sinyal kalitesi notu (kalite.py, data/sinyal_kalitesi.json)
+# ---------------------------------------------------------------------------
+
+KQ_GRADE = "Not {grade}"
+# Yüzdeye ek getirilmez (%36'sı / %45'i sayının okunuşuna göre değişir); cümle eksiz kurulur.
+KQ_STATS = "Bu kalitedeki sinyaller geçmişte: hedefe ulaşan %{hit}{days}, stop olan %{stop} ({n} sinyal, 2021'den bu yana)."
+KQ_STATS_DAYS = " (medyan {days} gün)"
+KQ_CAPTION = (
+    "Not (A/B/C) skor aralığının 2021-2024 sonuçlarına göre verildi ve 2025 sonrasında sıralaması doğrulandı. "
+    "En iyi not bile 2025 sonrasında ortalama başabaş; ayrıntı Sistem Performansı sekmesinde ve docs/sistem_raporu.md'de."
+)
+TR_COL_GRADE = "Not"
