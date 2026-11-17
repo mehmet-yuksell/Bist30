@@ -192,7 +192,6 @@ tarayici_motor.py   Bluetsman Alım/Sat v2 hesaplama motoru (skor, sinyal, stop/
 motor_veri.py       data.py çıktısı -> motor girdisi (temettü düzeltmesi) ve sinyal özetleri
 market.py           BIST seans saati ve önbellek zaman dilimi (Europe/Istanbul)
 feed.py             Piyasa saatine göre güncel veri, son başarılı veriye dönüş, yenileme sınırı
-bluetsman.py        Eski 8 koşullu Bluetsman (Pine) aktarımı; panelde artık kullanılmıyor
 evaluation.py       Sinyal değerlendirme (işlem simülasyonu, metrikler, dönem ayrımı)
 filtreler.py        Alım sinyali kalite filtreleri F1-F8
 firsat.py           FIRSAT sistemi (sert düşüş sonrası toparlanma) ve düşen bıçak elemesi
