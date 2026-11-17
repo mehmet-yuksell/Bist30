@@ -11,7 +11,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import data
-from config import BIST30_TICKERS
+from config import BIST100_TICKERS
 from data import load_all_bist_symbols
 
 
@@ -44,10 +44,10 @@ def test_load_all_bist_symbols_contains_known_tickers():
     assert "SERAMİK" in symbols["USAK"]
 
 
-def test_load_all_bist_symbols_covers_bist30():
+def test_load_all_bist_symbols_covers_bist100():
     symbols = load_all_bist_symbols()
 
-    missing = [t for t in BIST30_TICKERS if t not in symbols]
+    missing = [t for t in BIST100_TICKERS if t not in symbols]
     assert missing == []
 
 
@@ -90,3 +90,8 @@ def test_multiple_histories_drop_rows_without_close(monkeypatch):
 
     assert result["THYAO"].index[-1] == pd.Timestamp("2026-10-28")
     assert result["THYAO"]["Close"].notna().all()
+
+
+def test_bist100_list_has_100_unique_symbols():
+    assert len(BIST100_TICKERS) == 100
+    assert all(symbol.isupper() and name.strip() for symbol, name in BIST100_TICKERS.items())

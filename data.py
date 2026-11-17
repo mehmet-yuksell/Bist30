@@ -31,7 +31,7 @@ class DataFetchError(Exception):
 def load_all_bist_symbols() -> dict[str, str]:
     """data/bist_all.csv dosyasından (KAP kaynaklı) tüm BIST sembollerini yükler.
 
-    Sembol -> şirket adı eşlemesi döner. BIST 30 Tarama sekmesi bunu KULLANMAZ;
+    Sembol -> şirket adı eşlemesi döner. BIST 100 Tarama sekmesi bunu KULLANMAZ;
     sadece Hisse Detay ve Karşılaştırma'daki arama/seçim için kullanılır.
     Yahoo'da güncel verisi olmayanlar (yahoo_data != "1") listeye alınmaz; işaretler
     tools/update_yahoo_coverage.py ile güncellenir.
@@ -146,7 +146,7 @@ def get_usdtry_rate(start_date: date, end_date: date) -> pd.Series:
 def get_multiple_price_histories(
     tickers: tuple[str, ...], period: str = "2y"
 ) -> dict[str, pd.DataFrame]:
-    """BIST 30 taraması için tüm hisselerin OHLCV verisini tek seferde çeker."""
+    """BIST 100 taraması için tüm hisselerin OHLCV verisini tek seferde çeker."""
     yahoo_tickers = [f"{t}{YAHOO_SUFFIX}" for t in tickers]
 
     try:

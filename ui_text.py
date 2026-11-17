@@ -31,21 +31,22 @@ ERROR_INCOMPLETE_DATA = (
 )
 
 ERROR_NETWORK_BATCH = (
-    "BIST 30 verileri alınırken bir ağ hatası oluştu. Lütfen internet "
+    "BIST 100 verileri alınırken bir ağ hatası oluştu. Lütfen internet "
     "bağlantınızı kontrol edip tekrar deneyin."
 )
 
-ERROR_NO_DATA_BATCH = "BIST 30 hisseleri için veri alınamadı."
+ERROR_NO_DATA_BATCH = "BIST 100 hisseleri için veri alınamadı."
 
 ERROR_FX_UNAVAILABLE = (
     "USD/TL kuru verisi alınamadı. Lütfen tekrar deneyin veya TL görünümünü kullanın."
 )
 
 TAB_HISSE_DETAY = "Hisse Detay"
-TAB_TARAMA = "BIST 30 Tarama"
+TAB_TARAMA = "BIST 100 Tarama"
 TAB_KARSILASTIRMA = "Karşılaştırma"
 
 EXPANDER_LABEL = "Bu ne anlama gelir?"
+EXPLAIN_INDICATORS = "Göstergeler ne anlama gelir?"
 
 EXPLANATIONS = {
     "sma_ema": (
@@ -98,6 +99,16 @@ EXPLANATIONS = {
         "hatası yoktur). Parametreler (RSI 14/30/70, MACD 12/26/9, SMA 50/200) "
         "sabittir; bu hisseye özel olarak optimize edilmemiştir."
     ),
+    "bluetsman": (
+        "Bluetsman alım sistemi sekiz koşula bakar: EMA 13'ün EMA 34'ü yukarı kesmesi, "
+        "hacmin 20 günlük ortalamanın %5 üzerinde olması, RSI > 50, günlük momentum > 0, "
+        "MACD histogramı > 0, fiyatın EMA 34 üzerinde olması, Supertrend'in yukarı yönde "
+        "olması ve ADX > 20. Sekizi de aynı gün sağlanırsa sinyal oluşur (grafikte mavi üçgen). "
+        "Skor, koşulların ne kadar güçlü sağlandığını 0-100 arasında puanlar; 70 ve üzeri "
+        "yeşil, 40-69 turuncu, altı kırmızı gösterilir. EMA kesişimi tek günlük bir olay olduğu "
+        "için sinyal seyrek oluşur. Hesaplar TradingView'deki göstergeyle aynıdır, gün içinde "
+        "değil günlük kapanışla yapılır."
+    ),
     "usd_view": (
         "Türk Lirası yüksek enflasyon ve kur hareketleri nedeniyle zaman "
         "içinde değer kaybedebilir; bu da TL bazlı bir grafikte fiyatın "
@@ -148,7 +159,8 @@ HD_VIEW_LABEL = "Grafik dönemi"
 HD_VIEW_WINDOWS = {"1A": 30, "3A": 91, "6A": 182, "1Y": 365, "Tümü": None}
 HD_CURRENCY_LABEL = "Para birimi"
 HD_INDICATORS_LABEL = "Göstergeler"
-HD_INDICATOR_OPTIONS = ["SMA 50", "SMA 200", "EMA 20", "Bollinger"]
+HD_INDICATOR_BLUETSMAN = "Bluetsman"
+HD_INDICATOR_OPTIONS = [HD_INDICATOR_BLUETSMAN, "SMA 50", "SMA 200", "EMA 20", "Bollinger"]
 HD_FX_ALIGN_FAILED = "USD/TL kuru bu tarih aralığı için hizalanamadı; TL görünümü kullanılıyor."
 
 HERO_AS_OF = "{date} kapanışı · önceki kapanışa göre"
@@ -165,6 +177,9 @@ CHART_PANEL_MACD = "MACD (12, 26, 9)"
 CHART_SERIES_SMA50 = "SMA 50"
 CHART_SERIES_SMA200 = "SMA 200"
 CHART_SERIES_EMA20 = "EMA 20"
+CHART_SERIES_BL_FAST = "EMA 13"
+CHART_SERIES_BL_SLOW = "EMA 34"
+CHART_BL_SIGNAL = "Alım sinyali"
 CHART_SERIES_BOLLINGER = "Bollinger (20, 2)"
 CHART_SERIES_MACD = "MACD"
 CHART_SERIES_SIGNAL = "Sinyal"
@@ -195,10 +210,54 @@ BADGE_SMA_BELOW = "50, 200'ün altında"
 BADGE_INSUFFICIENT = "Yetersiz veri"
 
 # ---------------------------------------------------------------------------
+# Bluetsman alım sistemi
+# ---------------------------------------------------------------------------
+
+BL_TITLE = "Bluetsman Alım Sistemi"
+BL_CAPTION = (
+    "TradingView'deki Bluetsman (Piyasanın Efendisi) göstergesinin aynısı; son kapanışa göre. "
+    "Bir koşul taramasıdır, yatırım tavsiyesi değildir."
+)
+BL_STATUS_TODAY = "Bugün alım sinyali var"
+BL_STATUS_RECENT = "Son sinyal {days} işlem günü önce ({date}, skor {score})"
+BL_STATUS_NONE = "Son {days} işlem gününde sinyal yok"
+BL_STATUS_SUB = "{met}/8 koşul bugün sağlanıyor · sinyal için 8/8 gerekir"
+BL_SCORE_LABEL = "Bugünkü skor (0-100)"
+BL_TODAY = "Bugün"
+BL_DAYS_AGO = "{days} gün önce"
+BL_COND_LABELS = {
+    "ema_cross": "EMA 13/34 kesişimi",
+    "volume": "Hacim artışı",
+    "rsi": "RSI > 50",
+    "momentum": "Momentum > 0",
+    "macd": "MACD hist. > 0",
+    "price_above": "Fiyat > EMA 34",
+    "supertrend": "Supertrend yukarı",
+    "adx": "ADX > 20",
+}
+BL_CROSS_TODAY = "Bugün yukarı kesti"
+BL_CROSS_ABOVE = "Kesişim yok (13, 34'ün üzerinde)"
+BL_CROSS_BELOW = "Kesişim yok (13, 34'ün altında)"
+BL_VOLUME_VALUE = "Ortalamanın {ratio} katı"
+BL_TREND_UP = "Yukarı"
+BL_TREND_DOWN = "Aşağı"
+BL_HISTORY_TITLE = "Geçmiş sinyaller (seçili tarih aralığı)"
+BL_HISTORY_CAPTION = (
+    "10 gün sonra: sinyal günü kapanışından 10 işlem günü sonraki kapanışa değişim. "
+    "Geçmiş sonuçlar gelecek için garanti değildir."
+)
+BL_HISTORY_EMPTY = "Seçili tarih aralığında hiç sinyal oluşmadı."
+BL_COL_DATE = "Tarih"
+BL_COL_SCORE = "Skor"
+BL_COL_CLOSE = "Kapanış (TL)"
+BL_COL_FORWARD = "10 gün sonra"
+BL_HISTORY_SUMMARY = "{count} sinyal · 10 gün sonra yükselen: {up}/{done} · ortalama {avg}"
+
+# ---------------------------------------------------------------------------
 # Sinyal Karnesi
 # ---------------------------------------------------------------------------
 
-BT_TITLE = "Sinyal Karnesi"
+BT_EXPANDER = "Sinyal Karnesi: RSI, MACD ve SMA sinyallerinin geçmiş performansı"
 BT_CAPTION = (
     "Seçtiğiniz hissede üç basit teknik sinyalin geçmiş performansı. "
     "Sinyal gün sonunda oluşur, işlem ertesi günün açılışında gerçekleşir."
@@ -225,38 +284,43 @@ BT_EXIT = "Çıkış"
 BT_EQUITY_AXIS = "Başlangıç = 100"
 
 # ---------------------------------------------------------------------------
-# BIST 30 Tarama
+# BIST 100 Tarama
 # ---------------------------------------------------------------------------
 
 TR_RISING = "Yükselen"
 TR_FALLING = "Düşen"
-TR_TOP_GAINER = "En çok yükselen"
-TR_TOP_LOSER = "En çok düşen"
+TR_SIGNAL_TODAY = "Bugün alım sinyali"
+TR_SIGNAL_RECENT = "Son {days} günde sinyal"
 TR_AS_OF = "{date} itibarıyla · günlük değişim önceki kapanışa göre"
-TR_HEATMAP_TITLE = "Günlük Değişim Isı Haritası"
-TR_LIST_TITLE = "Hisseler"
-TR_TREND_LABEL = "Trend durumu"
+TR_LIST_TITLE = "BIST 100 Hisseleri"
+TR_LIST_CAPTION = "Skor ve sinyal Bluetsman alım sistemine göredir; ayrıntısı Hisse Detay sekmesinde."
+TR_LIST_META = "Skor {score} · {met} koşul"
+TR_FILTER_LABEL = "Göster"
+TR_FILTER_ALL = "Tümü"
+TR_FILTER_SIGNAL = "Son {days} günde sinyal verenler"
 TR_SEARCH_LABEL = "Hisse kodu veya şirket adı ara"
 TR_SEARCH_PLACEHOLDER = "Örn. GARAN veya Koç"
-TR_VIEW_LABEL = "Görünüm"
-TR_VIEW_LIST = "Liste"
-TR_VIEW_TABLE = "Tablo"
 TR_SORT_LABEL = "Sırala"
 TR_SORT_OPTIONS = {
+    "score_desc": "Skor (yüksekten)",
     "change_desc": "Değişim (yüksekten)",
     "change_asc": "Değişim (düşükten)",
     "ticker": "Hisse (A-Z)",
-    "rsi_desc": "RSI (yüksekten)",
 }
 TR_MISSING = "{count} hisse için veri alınamadı ve listeden çıkarıldı."
-TR_NO_RESULTS = "Filtrelere uyan hisse yok. Arama metnini veya trend filtresini değiştirin."
+TR_NO_RESULTS = "Filtrelere uyan hisse yok. Arama metnini değiştirin."
+TR_NO_SIGNALS = "Son {days} işlem gününde hiçbir BIST 100 hissesinde alım sinyali oluşmadı."
 TR_NO_DATA = "Hiçbir hisse için veri alınamadı."
 TR_COL_TICKER = "Hisse"
 TR_COL_COMPANY = "Şirket"
 TR_COL_PRICE = "Son Fiyat"
 TR_COL_CHANGE = "Günlük Değişim"
+TR_COL_SCORE = "Skor"
+TR_COL_MET = "Koşul"
+TR_COL_SIGNAL = "Son Sinyal"
 TR_COL_RSI = "RSI"
-TR_COL_TREND = "Trend"
+TR_STRIP_FLAT = "{count} değişmeyen"
+TR_STRIP_OF = "{count} hisse içinde"
 
 # ---------------------------------------------------------------------------
 # Karşılaştırma
@@ -274,6 +338,4 @@ KR_CORR_NOT_ENOUGH = "Korelasyon hesaplamak için yeterli ortak veri yok."
 KR_PERIOD = "{start} – {end}"
 
 DATE_BUTTON_LABEL = "Tarih"
-TR_STRIP_FLAT = "{count} değişmeyen"
-TR_STRIP_OF = "{count} hisse içinde"
 BT_PRICE_LEGEND = "Fiyat (düzeltilmiş, TL)"

@@ -1,46 +1,116 @@
-# BIST 30 hisse listesi ve genel ayarlar.
+# BIST 100 hisse listesi ve genel ayarlar.
 #
-# BIST30_TICKERS burada BIST kodu -> şirket adı eşlemesi olarak tutulur (Yahoo Finance
-# sonekı ".IS" olmadan). Yahoo Finance üzerinden veri çekerken data.py bu sonekı ekler.
+# BIST100_TICKERS burada BIST kodu -> okunaklı kısa şirket adı eşlemesi olarak tutulur (Yahoo
+# Finance soneki ".IS" olmadan). Yahoo Finance üzerinden veri çekerken data.py bu soneki ekler.
 #
-# Liste, Borsa İstanbul'un 1 Ekim 2026 itibarıyla geçerli çeyreklik endeks revizyonuyla
-# (KAP bildirimi: Destek Finans Faktoring/DSTKF çıkarıldı, TR Anadolu Metal Madencilik/TRMET
-# dahil edildi) güncellenmiş haline göre doğrulanmıştır. BIST 30 bileşenleri üç ayda bir
-# değişebilir; bu listeyi periyodik olarak borsaistanbul.com veya KAP üzerinden kontrol edin.
+# Kaynak: Borsa İstanbul endeks bileşen dosyası
+# https://www.borsaistanbul.com/datum/hisse_endeks_ds.csv (ENDEKS KODU = XU100), 17/11/2026
+# tarihli. BIST 100 bileşenleri üç ayda bir değişebilir; listeyi
+# `python tools/check_bist100.py` ile aynı dosyaya karşı kontrol edin.
 
-BIST30_LAST_UPDATED = "2026-10-04"
+BIST100_LAST_UPDATED = "2026-11-17"
 
-BIST30_TICKERS: dict[str, str] = {
+BIST100_TICKERS: dict[str, str] = {
     "AEFES": "Anadolu Efes",
+    "AGHOL": "Anadolu Grubu Holding",
+    "AHGAZ": "Ahlatcı Doğal Gaz",
     "AKBNK": "Akbank",
+    "AKCNS": "Akçansa",
+    "AKFYE": "Akfen Yenilenebilir Enerji",
+    "AKSA": "Aksa Akrilik",
+    "AKSEN": "Aksa Enerji",
+    "ALARK": "Alarko Holding",
+    "ALBRK": "Albaraka Türk",
+    "ALTNY": "Altınay Savunma",
+    "ANHYT": "Anadolu Hayat Emeklilik",
+    "ANSGR": "Anadolu Sigorta",
+    "ARCLK": "Arçelik",
     "ASELS": "Aselsan",
     "ASTOR": "Astor Enerji",
+    "AYGAZ": "Aygaz",
+    "BERA": "Bera Holding",
     "BIMAS": "BİM Birleşik Mağazalar",
+    "BINHO": "1000 Yatırımlar Holding",
+    "BRSAN": "Borusan Boru Sanayi",
+    "BRYAT": "Borusan Yatırım ve Pazarlama",
+    "BTCIM": "Batıçim Batı Anadolu Çimento",
+    "CANTE": "Çan2 Termik",
+    "CCOLA": "Coca-Cola İçecek",
+    "CIMSA": "Çimsa",
+    "CVKMD": "CVK Maden",
+    "CWENE": "CW Enerji",
+    "DOAS": "Doğuş Otomotiv",
+    "DOHOL": "Doğan Holding",
+    "ECILC": "Eczacıbaşı İlaç",
+    "ECZYT": "Eczacıbaşı Yatırım",
+    "EGEEN": "Ege Endüstri",
+    "EGGUB": "Ege Gübre",
     "EKGYO": "Emlak Konut GYO",
+    "ENERY": "Enerya Enerji",
+    "ENJSA": "Enerjisa Enerji",
     "ENKAI": "Enka İnşaat",
+    "ENTRA": "IC Enterra Yenilenebilir Enerji",
     "EREGL": "Ereğli Demir Çelik",
+    "EUREN": "Europen Endüstri",
+    "FENER": "Fenerbahçe Futbol",
     "FROTO": "Ford Otosan",
     "GARAN": "Garanti BBVA",
+    "GLRMK": "Gülermak Ağır Sanayi",
+    "GLYHO": "Global Yatırım Holding",
+    "GRSEL": "Gür-Sel Turizm Taşımacılık",
     "GUBRF": "Gübre Fabrikaları",
+    "GWIND": "Galata Wind Enerji",
+    "HALKB": "Türkiye Halk Bankası",
+    "HEKTS": "Hektaş",
     "ISCTR": "Türkiye İş Bankası (C)",
+    "ISDMR": "İskenderun Demir Çelik",
+    "ISMEN": "İş Yatırım Menkul Değerler",
+    "KARSN": "Karsan Otomotiv",
+    "KATMR": "Katmerciler Ekipman",
+    "KCAER": "Kocaer Çelik",
     "KCHOL": "Koç Holding",
+    "KORDS": "Kordsa Teknik Tekstil",
     "KRDMD": "Kardemir (D)",
+    "LMKDC": "Limak Doğu Anadolu Çimento",
+    "MAVI": "Mavi Giyim",
     "MGROS": "Migros",
+    "MPARK": "MLP Sağlık",
+    "OBAMS": "Oba Makarnacılık",
+    "ODAS": "Odaş Elektrik",
+    "OTKAR": "Otokar",
+    "OYAKC": "Oyak Çimento",
+    "PAHOL": "Pasifik Holding",
     "PETKM": "Petkim",
     "PGSUS": "Pegasus",
+    "RGYAS": "Rönesans Gayrimenkul Yatırım",
+    "RYSAS": "Reysaş Lojistik",
     "SAHOL": "Sabancı Holding",
     "SASA": "Sasa Polyester",
     "SISE": "Şişecam",
+    "SNGYO": "Sinpaş GYO",
+    "SOKM": "Şok Marketler",
+    "TABGD": "TAB Gıda",
     "TAVHL": "TAV Havalimanları",
     "TCELL": "Turkcell",
+    "TCKRC": "Kıraç Galvaniz",
     "THYAO": "Türk Hava Yolları",
+    "TKFEN": "Tekfen Holding",
     "TOASO": "Tofaş Otomobil Fabrikası",
     "TRALT": "Türk Altın İşletmeleri",
+    "TRENJ": "TR Doğal Enerji",
+    "TRGYO": "Torunlar GYO",
     "TRMET": "TR Anadolu Metal Madencilik",
+    "TSKB": "Türkiye Sınai Kalkınma Bankası",
     "TTKOM": "Türk Telekom",
+    "TTRAK": "Türk Traktör",
+    "TUKAS": "Tukaş",
     "TUPRS": "Tüpraş",
+    "TURSG": "Türkiye Sigorta",
+    "ULKER": "Ülker Bisküvi",
     "VAKBN": "VakıfBank",
+    "VESTL": "Vestel",
     "YKBNK": "Yapı Kredi Bankası",
+    "ZOREN": "Zorlu Enerji",
 }
 
 YAHOO_SUFFIX = ".IS"

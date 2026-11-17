@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import streamlit as st
 
-from config import BIST30_TICKERS
+from config import BIST100_TICKERS
 from ui.components import callout
 from ui_text import (
     DATE_BUTTON_LABEL,
@@ -27,8 +27,8 @@ def symbol_formatter(all_stocks: dict[str, str]):
 
 
 def display_name(symbol: str, all_stocks: dict[str, str]) -> str:
-    """BIST 30 için okunaklı kısa ad, diğerleri için KAP'taki resmi unvan."""
-    return BIST30_TICKERS.get(symbol) or all_stocks.get(symbol, "")
+    """BIST 100 için okunaklı kısa ad, diğerleri için KAP'taki resmi unvan."""
+    return BIST100_TICKERS.get(symbol) or all_stocks.get(symbol, "")
 
 
 def date_range_popover(key: str, default_days: int):

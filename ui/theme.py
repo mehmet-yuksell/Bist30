@@ -33,9 +33,7 @@ WARN = "#F0B429"
 ACCENT = "#2F6FEB"
 ACCENT_TEXT = "#6EA8FE"
 
-# Isı haritası hücreleri (beyaz yazı ≥ 4.5:1 kalacak koyulukta uç değerler)
-HEAT_UP = "#0F7A53"
-HEAT_DOWN = "#B42E36"
+# Korelasyon ısı haritasının orta (0) hücresi
 HEAT_NEUTRAL = "#2A2F3B"
 
 # Korelasyon için yön içermeyen ıraksak (diverging) çift: mavi <-> kırmızı.

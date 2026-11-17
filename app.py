@@ -30,17 +30,18 @@ header.html(header_html())
 # Sekmeler, okudukları verinin son işlem gününü buraya ekler; başlıkta gösterilir.
 ctx = {"last_dates": []}
 
+# Tarama ilk sekmedir: Bluetsman sinyali veren hisseler açılışta görünür.
 tab1, tab2, tab3 = st.tabs([
-    f":material/candlestick_chart: {TAB_HISSE_DETAY}",
     f":material/grid_view: {TAB_TARAMA}",
+    f":material/candlestick_chart: {TAB_HISSE_DETAY}",
     f":material/compare_arrows: {TAB_KARSILASTIRMA}",
 ])
 
 with tab1:
-    hisse_detay.render(device, ctx)
+    tarama.render(device, ctx)
 
 with tab2:
-    tarama.render(device, ctx)
+    hisse_detay.render(device, ctx)
 
 with tab3:
     karsilastirma.render(device, ctx)

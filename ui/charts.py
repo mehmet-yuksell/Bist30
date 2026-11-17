@@ -20,10 +20,13 @@ from ui.viewport import DESKTOP, MOBILE, TABLET
 from ui_text import (
     BT_ENTRY,
     BT_EXIT,
+    CHART_BL_SIGNAL,
     CHART_PANEL_MACD,
     CHART_PANEL_RSI,
     CHART_PANEL_VOLUME,
     CHART_PRICE_AXIS,
+    CHART_SERIES_BL_FAST,
+    CHART_SERIES_BL_SLOW,
     CHART_SERIES_BOLLINGER,
     CHART_SERIES_EMA20,
     CHART_SERIES_HISTOGRAM,
@@ -52,6 +55,10 @@ OVERLAY_COLORS = {
     "sma200": t.SERIES[1],
     "ema20": t.SERIES[2],
     "bollinger": t.BOLLINGER,
+    # Bluetsman göstergesindeki kırmızı/sarı EMA'lara yakın; kırmızı düşüş rengiyle karışmasın diye pembe
+    "bl_fast": t.SERIES[4],
+    "bl_slow": t.WARN,
+    "bl_signal": t.ACCENT_TEXT,
     # MACD paneli ayrı olsa da aynı lejantta durduğu için fiyat ortalamalarıyla renk paylaşmaz
     "macd": t.MACD_LINE,
     "signal": t.SERIES[3],
@@ -161,10 +168,13 @@ def _line(x, y, name: str, color: str, width: float = 1.6, fmt: str = ",.2f", **
 
 
 def build_detail_figure(df: pd.DataFrame, overlays: dict, rsi_series: pd.Series,
-                        macd_df: pd.DataFrame, currency_label: str, device: str) -> go.Figure:
+                        macd_df: pd.DataFrame, currency_label: str, device: str,
+                        signal_scores: pd.Series | None = None) -> go.Figure:
     """Mum + hacim + RSI + MACD. `df` ve seriler, gösterilecek pencereye zaten kırpılmış olmalı.
 
-    overlays: {"sma50": Series|None, "sma200": ..., "ema20": ..., "bollinger": DataFrame|None}
+    overlays: {"sma50": Series|None, "sma200": ..., "ema20": ..., "bl_fast": ..., "bl_slow": ...,
+    "bollinger": DataFrame|None}
+    signal_scores: Bluetsman alım sinyali günlerinin skoru (indeks = tarih); mumun altında üçgen.
     """
     fig = make_subplots(
         rows=4, cols=1, shared_xaxes=True,
@@ -195,10 +205,28 @@ def build_detail_figure(df: pd.DataFrame, overlays: dict, rsi_series: pd.Series,
         row=1, col=1,
     )
 
-    for key, name in (("sma50", CHART_SERIES_SMA50), ("sma200", CHART_SERIES_SMA200), ("ema20", CHART_SERIES_EMA20)):
+    for key, name in (
+        ("sma50", CHART_SERIES_SMA50), ("sma200", CHART_SERIES_SMA200), ("ema20", CHART_SERIES_EMA20),
+        ("bl_fast", CHART_SERIES_BL_FAST), ("bl_slow", CHART_SERIES_BL_SLOW),
+    ):
         series = overlays.get(key)
         if series is not None:
             fig.add_trace(_line(x, series, name, OVERLAY_COLORS[key]), row=1, col=1)
+
+    if signal_scores is not None and len(signal_scores):
+        lows = df["Low"].reindex(signal_scores.index)
+        span = (df["High"].max() - df["Low"].min()) or 1.0
+        fig.add_trace(
+            go.Scatter(
+                x=signal_scores.index, y=lows - span * 0.03,
+                mode="markers", name=CHART_BL_SIGNAL,
+                marker=dict(symbol="triangle-up", size=11 if device == MOBILE else 13,
+                            color=OVERLAY_COLORS["bl_signal"], line=dict(color=t.BG, width=1)),
+                customdata=signal_scores.round().to_numpy(),
+                hovertemplate=f"{CHART_BL_SIGNAL} · Skor %{{customdata:.0f}}<extra></extra>",
+            ),
+            row=1, col=1,
+        )
 
     volume_colors = np.where(df["Close"] >= df["Open"], t.UP, t.DOWN)
     fig.add_trace(

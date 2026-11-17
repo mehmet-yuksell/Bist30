@@ -248,6 +248,7 @@ footer {{
 .ui-up {{ color: var(--up); }}
 .ui-down {{ color: var(--down-text); }}
 .ui-flat {{ color: var(--text-2); }}
+.ui-accent {{ color: var(--accent-text); }}
 
 /* Metrik ızgarası: telefonda 2x2, geniş ekranda 4'lü */
 .ui-metrics {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }}
@@ -304,6 +305,7 @@ footer {{
 .ui-swatch.dot {{ width: 9px; height: 9px; border-radius: 50%; }}
 .ui-swatch.tri-up {{ width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--up); border-radius: 0; background: none !important; }}
 .ui-swatch.tri-down {{ width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 9px solid var(--down); border-radius: 0; background: none !important; }}
+.ui-swatch.tri-up.accent {{ border-bottom-color: var(--accent-text); }}
 
 /* Strateji kartları (Sinyal Karnesi) */
 .ui-cards {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }}
@@ -323,17 +325,28 @@ footer {{
 .ui-breadth {{ display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--neutral-bg); margin-top: var(--space-2); }}
 .ui-breadth span {{ display: block; height: 100%; }}
 
-/* Isı haritası (HTML ızgarası): telefonda 5, geniş ekranda 6 sütun */
-.ui-heat {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }}
-.ui-heat-cell {{
-    border-radius: var(--radius-sm);
-    padding: 10px 4px;
-    text-align: center;
-    color: #FFFFFF;
-    min-width: 0;
+/* Bluetsman koşul ızgarası: telefonda 2, geniş ekranda 4 sütun */
+.ui-checks {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-3); }}
+.ui-check {{
+    display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 2px var(--space-2); align-items: start;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px var(--space-3); min-width: 0;
 }}
-.ui-heat-cell b {{ display: block; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.01em; }}
-.ui-heat-cell span {{ display: block; font-size: var(--fs-xs); font-weight: 500; margin-top: 2px; font-variant-numeric: tabular-nums; opacity: 0.95; }}
+.ui-check-mark {{ font-weight: 700; font-size: var(--fs-base); line-height: 1.3; }}
+.ui-check.ok .ui-check-mark {{ color: var(--up); }}
+.ui-check.no .ui-check-mark {{ color: var(--text-3); }}
+.ui-check-label {{ font-size: var(--fs-sm); font-weight: 600; color: var(--text-1); }}
+.ui-check-value {{ grid-column: 2; font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }}
+.ui-signal-head {{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }}
+.ui-signal-title {{ font-size: var(--fs-md); font-weight: 650; color: var(--text-1); }}
+.ui-signal-sub {{ font-size: var(--fs-sm); color: var(--text-2); margin-top: 2px; }}
+.ui-score {{ text-align: right; }}
+.ui-score-value {{ font-size: var(--fs-hero); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }}
+.ui-score-label {{ font-size: var(--fs-xs); color: var(--text-3); margin-top: 4px; }}
+.ui-score-bar {{ height: 6px; border-radius: 3px; background: var(--neutral-bg); overflow: hidden; margin-top: var(--space-3); }}
+.ui-score-bar span {{ display: block; height: 100%; border-radius: 3px; }}
+.ui-list-signal {{ margin-top: 4px; }}
+.ui-list-signal .ui-badge {{ font-size: 11px; padding: 1px 8px; }}
 
 /* Kompakt hisse listesi */
 .ui-list {{
@@ -405,8 +418,8 @@ footer {{
 /* ---------- Tablet ve üstü ---------- */
 @media (min-width: 768px) {{
     .ui-cards {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-    .ui-heat {{ grid-template-columns: repeat(6, minmax(0, 1fr)); }}
     .ui-strip {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
+    .ui-checks {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
 }}
 
 /* ---------- Masaüstü ---------- */
@@ -459,7 +472,6 @@ footer {{
 }}
 @media (max-width: 359.98px) {{
     .ui-cards {{ grid-template-columns: minmax(0, 1fr); }}
-    .ui-heat {{ grid-template-columns: repeat(4, minmax(0, 1fr)); }}
 }}
 """
 

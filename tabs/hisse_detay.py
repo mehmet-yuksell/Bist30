@@ -1,8 +1,9 @@
-"""Hisse Detay sekmesi: hero blok, mum grafiği + göstergeler, Teknik Özet, Sinyal Karnesi."""
+"""Hisse Detay sekmesi: hero, mum grafiği, Bluetsman alım sistemi, Teknik Özet, Sinyal Karnesi."""
 
 import pandas as pd
 import streamlit as st
 
+import bluetsman
 from backtest import run_buy_and_hold, run_macd_strategy, run_rsi_strategy, run_sma_cross_strategy
 from data import (
     DataFetchError,
@@ -31,13 +32,14 @@ from ui.components import (
     legend,
     metric_html,
     section_title,
+    signal_card,
     skeleton_html,
     strategy_cards,
     subtitle,
     summary_rows,
 )
 from ui.controls import date_range_popover, display_name, symbol_formatter, validate_date_range
-from ui.format import fmt_compact, fmt_date, fmt_num, fmt_pct, fmt_price
+from ui.format import arrow, direction, fmt_compact, fmt_date, fmt_num, fmt_pct, fmt_price
 from ui.viewport import MOBILE
 from ui_text import (
     BACKTEST_DISCLAIMER,
@@ -57,11 +59,34 @@ from ui_text import (
     BADGE_RSI_OVERSOLD,
     BADGE_SMA_ABOVE,
     BADGE_SMA_BELOW,
+    BL_CAPTION,
+    BL_COL_CLOSE,
+    BL_COL_DATE,
+    BL_COL_FORWARD,
+    BL_COL_SCORE,
+    BL_COND_LABELS,
+    BL_CROSS_ABOVE,
+    BL_CROSS_BELOW,
+    BL_CROSS_TODAY,
+    BL_HISTORY_CAPTION,
+    BL_HISTORY_EMPTY,
+    BL_HISTORY_SUMMARY,
+    BL_HISTORY_TITLE,
+    BL_SCORE_LABEL,
+    BL_STATUS_NONE,
+    BL_STATUS_RECENT,
+    BL_STATUS_SUB,
+    BL_STATUS_TODAY,
+    BL_TITLE,
+    BL_TREND_DOWN,
+    BL_TREND_UP,
+    BL_VOLUME_VALUE,
     BT_CAPTION,
     BT_COST_HELP,
     BT_COST_LABEL,
     BT_ENTRY,
     BT_EQUITY_TITLE,
+    BT_EXPANDER,
     BT_EXIT,
     BT_MAX_DRAWDOWN,
     BT_NEED_MORE_DATA,
@@ -71,23 +96,26 @@ from ui_text import (
     BT_TAG_BENCHMARK,
     BT_TAG_BEST,
     BT_TAG_WORST,
-    BT_TITLE,
     BT_TOTAL_RETURN,
     BT_TRADES_PICK,
     BT_TRADES_TITLE,
     BT_WIN_RATE,
+    CHART_BL_SIGNAL,
+    CHART_SERIES_BL_FAST,
+    CHART_SERIES_BL_SLOW,
     CHART_SERIES_BOLLINGER,
     CHART_SERIES_EMA20,
     CHART_SERIES_MACD,
     CHART_SERIES_SIGNAL,
     CHART_SERIES_SMA200,
     CHART_SERIES_SMA50,
-    EXPANDER_LABEL,
+    EXPLAIN_INDICATORS,
     EXPLANATIONS,
     HD_CURRENCY_LABEL,
     HD_EMPTY_BODY,
     HD_EMPTY_TITLE,
     HD_FX_ALIGN_FAILED,
+    HD_INDICATOR_BLUETSMAN,
     HD_INDICATOR_OPTIONS,
     HD_INDICATORS_LABEL,
     HD_TICKER_LABEL,
@@ -115,6 +143,8 @@ EXPANDER_ICON = ":material/help_outline:"
 MIN_BACKTEST_ROWS = 210
 MACD_CROSS_LOOKBACK = 5  # signals.describe_macd_cross ile aynı
 SMA_CROSS_LOOKBACK = 10  # signals.describe_golden_death_cross ile aynı
+SIGNAL_LOOKBACK = 10  # BIST 100 Tarama ile aynı
+HISTORY_ROWS = 10
 
 
 # ---------------------------------------------------------------------------
@@ -245,8 +275,97 @@ def _render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
         (SUMMARY_ROW_CROSS, *sma_badge, describe_golden_death_cross(sma50_series, sma200_series)),
     ])
 
-    with st.expander(f"{EXPANDER_LABEL} (Altın/Ölüm Kesişimi)", icon=EXPANDER_ICON):
-        st.write(EXPLANATIONS["golden_death_cross"])
+
+# ---------------------------------------------------------------------------
+# Bluetsman alım sistemi
+# ---------------------------------------------------------------------------
+
+def _condition_checks(signals: pd.DataFrame) -> list[tuple[str, bool, str]]:
+    last = signals.iloc[-1]
+    if last["ema_cross"]:
+        cross = BL_CROSS_TODAY
+    else:
+        cross = BL_CROSS_ABOVE if last["ema_fast"] > last["ema_slow"] else BL_CROSS_BELOW
+    momentum = last["momentum_value"]
+    values = {
+        "ema_cross": cross,
+        "volume": BL_VOLUME_VALUE.format(ratio=fmt_num(last["volume_ratio"], 2)),
+        "rsi": fmt_num(last["rsi_value"], 1),
+        "momentum": f"{arrow(momentum)} {fmt_num(abs(momentum))} TL",
+        "macd": fmt_num(last["macd_hist"], 2),
+        "price_above": f"EMA 34: {fmt_num(last['ema_slow'])}",
+        "supertrend": BL_TREND_UP if last["supertrend"] else BL_TREND_DOWN,
+        "adx": fmt_num(last["adx_value"], 1),
+    }
+    return [(BL_COND_LABELS[c], bool(last[c]), values[c]) for c in bluetsman.CONDITIONS]
+
+
+def _render_signal_history(df_tl: pd.DataFrame, signals: pd.DataFrame) -> None:
+    history = bluetsman.signal_history(df_tl, signals)
+    with st.expander(BL_HISTORY_TITLE, icon=":material/history:"):
+        if history.empty:
+            callout("empty", None, BL_HISTORY_EMPTY)
+            return
+        done = history["forward_return"].dropna()
+        st.markdown(BL_HISTORY_SUMMARY.format(
+            count=len(history), up=int((done > 0).sum()), done=len(done),
+            avg=fmt_pct(done.mean()) if len(done) else "—",
+        ))
+        recent = history.iloc[:HISTORY_ROWS]
+        forward = recent["forward_return"].to_numpy()
+        # Getiri metin olarak verilir: Streamlit boş değerde Styler'ın na_rep'ini yok sayıp
+        # "None" yazıyor. Renk yine sayısal değerden hesaplanır.
+        table = pd.DataFrame({
+            BL_COL_DATE: [fmt_date(d) for d in recent.index],
+            BL_COL_SCORE: recent["score"].round().astype(int).to_numpy(),
+            BL_COL_CLOSE: [fmt_num(v, 2) for v in recent["close"]],
+            BL_COL_FORWARD: ["—" if pd.isna(v) else f"{arrow(v)} {fmt_pct(v)}" for v in forward],
+        })
+        forward_colors = [
+            f"color: {({'up': t.UP, 'down': t.DOWN_TEXT}).get(direction(v), t.TEXT_3)}; font-weight: 600"
+            for v in forward
+        ]
+
+        st.dataframe(
+            table.style.apply(lambda _: forward_colors, subset=[BL_COL_FORWARD]),
+            hide_index=True, width="stretch",
+        )
+        st.caption(BL_HISTORY_CAPTION)
+
+
+def _render_bluetsman(df_tl: pd.DataFrame, signals: pd.DataFrame) -> None:
+    section_title(BL_TITLE, BL_CAPTION)
+    status = bluetsman.latest_status(signals, SIGNAL_LOOKBACK)
+    if status["signal_today"]:
+        title = BL_STATUS_TODAY
+    elif status["days_since"] is not None:
+        title = BL_STATUS_RECENT.format(
+            days=status["days_since"], date=fmt_date(status["signal_date"]),
+            score=round(status["signal_score"]),
+        )
+    else:
+        title = BL_STATUS_NONE.format(days=SIGNAL_LOOKBACK)
+    signal_card(
+        title=title,
+        subtitle_text=BL_STATUS_SUB.format(met=status["met"]),
+        score=status["score"],
+        score_label=BL_SCORE_LABEL,
+        checks=_condition_checks(signals),
+    )
+    _render_signal_history(df_tl, signals)
+
+
+def _render_explanations(currency: str) -> None:
+    """Tüm gösterge açıklamaları tek açılır kutuda (eskiden her gösterge için ayrı kutu vardı)."""
+    with st.expander(EXPLAIN_INDICATORS, icon=EXPANDER_ICON):
+        st.markdown(f"**Bluetsman alım sistemi** — {EXPLANATIONS['bluetsman']}")
+        st.markdown(f"**Ortalamalar** — {EXPLANATIONS['sma_ema']}")
+        st.markdown(f"**Bollinger Bantları** — {EXPLANATIONS['bollinger']}")
+        st.markdown(f"**RSI** — {EXPLANATIONS['rsi']}")
+        st.markdown(f"**MACD** — {EXPLANATIONS['macd']}")
+        st.markdown(f"**Altın / ölüm kesişimi** — {EXPLANATIONS['golden_death_cross']}")
+        if currency == "USD":
+            st.markdown(f"**Dolar bazlı görünüm** — {EXPLANATIONS['usd_view']}")
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +415,14 @@ def _strategy_card_data(results: dict) -> list[dict]:
 
 
 def _render_sinyal_karnesi(ticker: str, start_date, end_date, device: str) -> None:
-    section_title(BT_TITLE, BT_CAPTION)
+    # Gelişmiş bölüm, varsayılan kapalı. Streamlit iç içe açılır kutuya izin vermediği için
+    # içindeki açıklama düz metin olarak gösterilir.
+    with st.expander(BT_EXPANDER, icon=":material/science:"):
+        _render_sinyal_karnesi_body(ticker, start_date, end_date, device)
+
+
+def _render_sinyal_karnesi_body(ticker: str, start_date, end_date, device: str) -> None:
+    st.caption(BT_CAPTION)
 
     cost_pct = st.number_input(
         BT_COST_LABEL, min_value=0.0, max_value=5.0, value=0.1, step=0.05,
@@ -348,9 +474,7 @@ def _render_sinyal_karnesi(ticker: str, start_date, end_date, device: str) -> No
         device, key="bt_trades",
     )
 
-    with st.expander(f"{EXPANDER_LABEL} (Sinyal Karnesi)", icon=EXPANDER_ICON):
-        st.write(EXPLANATIONS["backtest"])
-
+    st.caption(EXPLANATIONS["backtest"])
     st.caption(BACKTEST_DISCLAIMER)
 
 
@@ -400,6 +524,10 @@ def render(device: str, ctx: dict) -> None:
 
     # Para birimi anahtarı grafik araç çubuğunda durur; hero ondan önce çizildiği için
     # seçili değer oturum durumundan okunur (anahtara tıklamak sayfayı yeniden çalıştırır).
+    # Bluetsman her zaman TL veriyle hesaplanır: momentum ve MACD eşikleri göstergede TL cinsindendir.
+    df_tl = df
+    signals = bluetsman.compute(df_tl)
+
     currency = st.session_state.get(CURRENCY_KEY) or "TL"
     currency_label = "TL"
     if currency == "USD":
@@ -421,28 +549,35 @@ def render(device: str, ctx: dict) -> None:
         st.segmented_control(HD_CURRENCY_LABEL, options=["TL", "USD"], default="TL", key=CURRENCY_KEY)
         indicators = st.pills(
             HD_INDICATORS_LABEL, options=HD_INDICATOR_OPTIONS, selection_mode="multi",
-            default=["SMA 50", "SMA 200"], key="hd_indicators",
+            default=[HD_INDICATOR_BLUETSMAN], key="hd_indicators",
         ) or []
 
-    if currency == "USD":
-        with st.expander(f"{EXPANDER_LABEL} (Dolar Bazlı Görünüm)", icon=EXPANDER_ICON):
-            st.write(EXPLANATIONS["usd_view"])
-
     mask = _window_mask(df.index, view)
+    show_bluetsman = HD_INDICATOR_BLUETSMAN in indicators
     overlays = {
         "sma50": sma50_series[mask] if "SMA 50" in indicators else None,
         "sma200": sma200_series[mask] if "SMA 200" in indicators else None,
         "ema20": ema(close, 20)[mask] if "EMA 20" in indicators else None,
         "bollinger": bollinger_bands(close, 20)[mask] if "Bollinger" in indicators else None,
+        # Dolar görünümünde EMA'lar dolar fiyatından çizilir; sinyal günleri TL hesabından gelir.
+        "bl_fast": ema(close, bluetsman.EMA_FAST)[mask] if show_bluetsman else None,
+        "bl_slow": ema(close, bluetsman.EMA_SLOW)[mask] if show_bluetsman else None,
     }
+    signal_scores = None
+    if show_bluetsman:
+        visible = signals.reindex(df.index)[mask]
+        signal_scores = visible.loc[visible["buy_signal"].eq(True), "score"]
     legend_items = [
         (name, charts.OVERLAY_COLORS[key], "line")
         for key, name in (
+            ("bl_fast", CHART_SERIES_BL_FAST), ("bl_slow", CHART_SERIES_BL_SLOW),
             ("sma50", CHART_SERIES_SMA50), ("sma200", CHART_SERIES_SMA200),
             ("ema20", CHART_SERIES_EMA20), ("bollinger", CHART_SERIES_BOLLINGER),
         )
         if overlays[key] is not None
     ]
+    if show_bluetsman:
+        legend_items.append((CHART_BL_SIGNAL, charts.OVERLAY_COLORS["bl_signal"], "tri-up accent"))
     legend_items += [
         (CHART_SERIES_MACD, charts.OVERLAY_COLORS["macd"], "line"),
         (CHART_SERIES_SIGNAL, charts.OVERLAY_COLORS["signal"], "line"),
@@ -451,21 +586,12 @@ def render(device: str, ctx: dict) -> None:
 
     fig = charts.build_detail_figure(
         df=df[mask], overlays=overlays, rsi_series=rsi_series[mask], macd_df=macd_df[mask],
-        currency_label=currency_label, device=device,
+        currency_label=currency_label, device=device, signal_scores=signal_scores,
     )
     charts.show_chart(fig, device, key="hd_chart")
+    _render_explanations(currency_label)
 
-    explain_cols = st.columns(3)
-    with explain_cols[0]:
-        with st.expander(f"{EXPANDER_LABEL} (Ortalamalar, Bollinger)", icon=EXPANDER_ICON):
-            st.write(EXPLANATIONS["sma_ema"])
-            st.write(EXPLANATIONS["bollinger"])
-    with explain_cols[1]:
-        with st.expander(f"{EXPANDER_LABEL} (RSI)", icon=EXPANDER_ICON):
-            st.write(EXPLANATIONS["rsi"])
-    with explain_cols[2]:
-        with st.expander(f"{EXPANDER_LABEL} (MACD)", icon=EXPANDER_ICON):
-            st.write(EXPLANATIONS["macd"])
+    _render_bluetsman(df_tl, signals)
 
     _render_teknik_ozet(close, sma50_series, sma200_series, rsi_series, macd_df)
 

@@ -1,17 +1,18 @@
-"""BIST 30 Tarama sekmesi: özet şeridi, ısı haritası ve sıralanabilir tablo / kompakt liste."""
+"""BIST 100 Tarama sekmesi: özet şeridi ve Bluetsman skoruyla sıralanabilir tablo / kompakt liste.
+
+Görünüm cihaza göre seçilir (telefonda liste, geniş ekranda tablo); kullanıcının ayrıca
+görünüm, trend veya ısı haritası ayarı yapması gerekmez.
+"""
 
 import pandas as pd
 import streamlit as st
 
-from config import BIST30_TICKERS
+import bluetsman
+from config import BIST100_TICKERS
 from data import DataFetchError, get_multiple_price_histories
-from indicators import rsi, sma
-from signals import trend_label
 from ui.components import (
     callout,
-    change_badge,
     error_state,
-    heat_grid,
     metric_html,
     section_title,
     skeleton_html,
@@ -19,46 +20,63 @@ from ui.components import (
     stock_list,
 )
 from ui.format import arrow, direction, fmt_date, fmt_num, fmt_pct
-from ui.viewport import DESKTOP, MOBILE
+from ui.viewport import MOBILE
 from ui import theme as t
 from ui_text import (
+    BL_DAYS_AGO,
+    BL_TODAY,
     TR_AS_OF,
     TR_COL_CHANGE,
     TR_COL_COMPANY,
+    TR_COL_MET,
     TR_COL_PRICE,
     TR_COL_RSI,
+    TR_COL_SCORE,
+    TR_COL_SIGNAL,
     TR_COL_TICKER,
-    TR_COL_TREND,
     TR_FALLING,
-    TR_HEATMAP_TITLE,
+    TR_FILTER_ALL,
+    TR_FILTER_LABEL,
+    TR_FILTER_SIGNAL,
+    TR_LIST_CAPTION,
+    TR_LIST_META,
     TR_LIST_TITLE,
     TR_MISSING,
     TR_NO_DATA,
     TR_NO_RESULTS,
+    TR_NO_SIGNALS,
     TR_RISING,
     TR_SEARCH_LABEL,
     TR_SEARCH_PLACEHOLDER,
+    TR_SIGNAL_RECENT,
+    TR_SIGNAL_TODAY,
     TR_SORT_LABEL,
     TR_SORT_OPTIONS,
     TR_STRIP_FLAT,
     TR_STRIP_OF,
-    TR_TOP_GAINER,
-    TR_TOP_LOSER,
-    TR_TREND_LABEL,
-    TR_VIEW_LABEL,
-    TR_VIEW_LIST,
-    TR_VIEW_TABLE,
 )
 
+SIGNAL_LOOKBACK = 10  # "son 10 işlem günü"
+NO_SIGNAL = "—"
+
 SORTERS = {
+    "score_desc": (TR_COL_SCORE, False),
     "change_desc": (TR_COL_CHANGE, False),
     "change_asc": (TR_COL_CHANGE, True),
     "ticker": (TR_COL_TICKER, True),
-    "rsi_desc": (TR_COL_RSI, False),
 }
 
 
-def _build_rows(histories: dict, tickers: tuple[str, ...]) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+def _signal_text(days_since: int | None) -> str:
+    if days_since is None:
+        return NO_SIGNAL
+    return BL_TODAY if days_since == 0 else BL_DAYS_AGO.format(days=days_since)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _scan(tickers: tuple[str, ...]) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    """Tüm hisseler için günlük değişim, RSI ve Bluetsman durumunu tek tabloda toplar."""
+    histories = get_multiple_price_histories(tickers)
     rows = []
     last_date = None
     for ticker in tickers:
@@ -67,20 +85,23 @@ def _build_rows(histories: dict, tickers: tuple[str, ...]) -> tuple[pd.DataFrame
             continue
 
         close = df["Close"]
-        last_price = close.iloc[-1]
-        prev_price = close.iloc[-2]
-        daily_change = (last_price - prev_price) / prev_price * 100
-        rsi_value = rsi(close, 14).iloc[-1]
+        daily_change = (close.iloc[-1] - close.iloc[-2]) / close.iloc[-2] * 100
+        signals = bluetsman.compute(df)
+        rsi_value = signals["rsi_value"].iloc[-1]  # RSI(14), göstergenin kendi hesabından
+        status = bluetsman.latest_status(signals, SIGNAL_LOOKBACK)
         last_date = max(last_date, df.index[-1]) if last_date is not None else df.index[-1]
 
         rows.append(
             {
                 TR_COL_TICKER: ticker,
-                TR_COL_COMPANY: BIST30_TICKERS[ticker],
-                TR_COL_PRICE: round(float(last_price), 2),
+                TR_COL_COMPANY: BIST100_TICKERS[ticker],
+                TR_COL_PRICE: round(float(close.iloc[-1]), 2),
                 TR_COL_CHANGE: round(float(daily_change), 2),
+                TR_COL_SCORE: round(status["score"]),
+                TR_COL_MET: f"{status['met']}/{len(bluetsman.CONDITIONS)}",
+                TR_COL_SIGNAL: _signal_text(status["days_since"]),
                 TR_COL_RSI: round(float(rsi_value), 1) if pd.notna(rsi_value) else None,
-                TR_COL_TREND: trend_label(sma(close, 50).iloc[-1], sma(close, 200).iloc[-1]),
+                "_days_since": status["days_since"],
             }
         )
     return pd.DataFrame(rows), last_date
@@ -91,14 +112,16 @@ def _render_summary(table_df: pd.DataFrame) -> None:
     rising = int((changes.round(2) > 0).sum())
     falling = int((changes.round(2) < 0).sum())
     flat = len(changes) - rising - falling
-    top = table_df.loc[changes.idxmax()]
-    bottom = table_df.loc[changes.idxmin()]
+    days = table_df["_days_since"]
+    today_count = int((days == 0).sum())
+    recent_count = int(days.notna().sum())
 
     cards = [
         metric_html(TR_RISING, f"▲ {rising}", sub=TR_STRIP_OF.format(count=len(changes)), value_class="ui-up"),
         metric_html(TR_FALLING, f"▼ {falling}", sub=TR_STRIP_FLAT.format(count=flat), value_class="ui-down"),
-        metric_html(TR_TOP_GAINER, top[TR_COL_TICKER], sub=change_badge(top[TR_COL_CHANGE])),
-        metric_html(TR_TOP_LOSER, bottom[TR_COL_TICKER], sub=change_badge(bottom[TR_COL_CHANGE])),
+        metric_html(TR_SIGNAL_TODAY, str(today_count), value_class="ui-accent" if today_count else ""),
+        metric_html(TR_SIGNAL_RECENT.format(days=SIGNAL_LOOKBACK), str(recent_count),
+                    value_class="ui-accent" if recent_count else ""),
     ]
     stat_strip(cards, breadth=(rising, flat, falling))
 
@@ -109,6 +132,9 @@ def _style_table(df: pd.DataFrame):
         color = {"up": t.UP, "down": t.DOWN_TEXT}.get(tone, t.TEXT_2)
         return f"color: {color}; font-weight: 600"
 
+    def signal_color(value):
+        return f"color: {t.TEXT_3}" if value == NO_SIGNAL else f"color: {t.ACCENT_TEXT}; font-weight: 600"
+
     return (
         df.style
         .format({
@@ -117,37 +143,40 @@ def _style_table(df: pd.DataFrame):
             TR_COL_RSI: lambda v: fmt_num(v, 1),
         })
         .map(change_color, subset=[TR_COL_CHANGE])
+        .map(signal_color, subset=[TR_COL_SIGNAL])
     )
 
 
-def _render_filters(table_df: pd.DataFrame, device: str):
-    with st.container(horizontal=True, vertical_alignment="bottom", gap="small", key="tr_filters"):
+def _render_filters(device: str) -> tuple[bool, str, str]:
+    mobile = device == MOBILE
+    signal_option = TR_FILTER_SIGNAL.format(days=SIGNAL_LOOKBACK)
+    with st.container(horizontal=True, vertical_alignment="bottom", gap="small", key="tr_filters", wrap=True):
+        show = st.segmented_control(
+            TR_FILTER_LABEL, options=[TR_FILTER_ALL, signal_option], default=TR_FILTER_ALL, key="tr_show",
+        ) or TR_FILTER_ALL
         search = st.text_input(
             TR_SEARCH_LABEL, "", placeholder=TR_SEARCH_PLACEHOLDER, key="tr_search",
-            width="stretch" if device == MOBILE else 280,
+            width="stretch" if mobile else 260,
         )
-        view = st.segmented_control(
-            TR_VIEW_LABEL, options=[TR_VIEW_LIST, TR_VIEW_TABLE],
-            default=TR_VIEW_LIST if device == MOBILE else TR_VIEW_TABLE, key="tr_view",
-        ) or (TR_VIEW_LIST if device == MOBILE else TR_VIEW_TABLE)
-        sort_key = "change_desc"
-        if view == TR_VIEW_LIST:
+        # Tabloda sütun başlığına tıklanarak sıralanır; listede bunun yerine seçim kutusu var.
+        sort_key = "score_desc"
+        if mobile:
             sort_key = st.selectbox(
                 TR_SORT_LABEL, options=list(TR_SORT_OPTIONS), format_func=TR_SORT_OPTIONS.get,
-                key="tr_sort", width=200,
+                key="tr_sort", width="stretch",
             )
-
-    trend_options = sorted(table_df[TR_COL_TREND].unique())
-    selected_trends = st.pills(
-        TR_TREND_LABEL, trend_options, selection_mode="multi", default=trend_options, key="tr_trends",
-    ) or []
-    return search, view, sort_key, selected_trends
+    return show == signal_option, search, sort_key
 
 
 def _render_results(table_df: pd.DataFrame, device: str) -> None:
-    search, view, sort_key, selected_trends = _render_filters(table_df, device)
+    only_signals, search, sort_key = _render_filters(device)
 
-    filtered = table_df[table_df[TR_COL_TREND].isin(selected_trends)]
+    filtered = table_df
+    if only_signals:
+        filtered = filtered[filtered["_days_since"].notna()]
+        if filtered.empty:
+            callout("empty", None, TR_NO_SIGNALS.format(days=SIGNAL_LOOKBACK))
+            return
     if search:
         query = search.strip()
         mask = filtered[TR_COL_TICKER].str.contains(query, case=False, regex=False) | filtered[
@@ -159,38 +188,40 @@ def _render_results(table_df: pd.DataFrame, device: str) -> None:
         callout("empty", None, TR_NO_RESULTS)
         return
 
-    if view == TR_VIEW_LIST:
-        column, ascending = SORTERS[sort_key]
-        ordered = filtered.sort_values(column, ascending=ascending, na_position="last")
+    column, ascending = SORTERS[sort_key]
+    ordered = filtered.sort_values(column, ascending=ascending, na_position="last")
+
+    if device == MOBILE:
         stock_list([
             {
                 "ticker": row[TR_COL_TICKER],
                 "name": row[TR_COL_COMPANY],
                 "price": fmt_num(row[TR_COL_PRICE], 2),
                 "change": row[TR_COL_CHANGE],
-                "rsi": fmt_num(row[TR_COL_RSI], 1),
-                "trend": row[TR_COL_TREND],
+                "meta": TR_LIST_META.format(score=row[TR_COL_SCORE], met=row[TR_COL_MET]),
+                "signal": None if row[TR_COL_SIGNAL] == NO_SIGNAL else row[TR_COL_SIGNAL],
             }
             for _, row in ordered.iterrows()
         ])
         return
 
-    # Telefonda tablo seçilirse en önemli 5 sütun gösterilir (şirket adı listede/aramada kalır).
-    columns = (
-        [TR_COL_TICKER, TR_COL_PRICE, TR_COL_CHANGE, TR_COL_RSI, TR_COL_TREND]
-        if device == MOBILE
-        else list(filtered.columns)
-    )
+    columns = [
+        TR_COL_TICKER, TR_COL_COMPANY, TR_COL_PRICE, TR_COL_CHANGE,
+        TR_COL_SCORE, TR_COL_MET, TR_COL_SIGNAL, TR_COL_RSI,
+    ]
     st.dataframe(
-        _style_table(filtered),
+        _style_table(ordered[columns]),
         width="stretch",
-        height=min(36 * (len(filtered) + 1) + 4, 470),
+        height=min(36 * (len(ordered) + 1) + 4, 640),
         hide_index=True,
-        column_order=columns,
         column_config={
             TR_COL_TICKER: st.column_config.TextColumn(TR_COL_TICKER, width="small"),
             TR_COL_PRICE: st.column_config.NumberColumn(TR_COL_PRICE),
             TR_COL_CHANGE: st.column_config.NumberColumn(TR_COL_CHANGE),
+            TR_COL_SCORE: st.column_config.ProgressColumn(
+                TR_COL_SCORE, min_value=0, max_value=100, format="%d", width="small",
+            ),
+            TR_COL_MET: st.column_config.TextColumn(TR_COL_MET, width="small"),
             TR_COL_RSI: st.column_config.NumberColumn(TR_COL_RSI, width="small"),
         },
     )
@@ -198,19 +229,18 @@ def _render_results(table_df: pd.DataFrame, device: str) -> None:
 
 @st.fragment
 def render(device: str, ctx: dict) -> None:
-    tickers = tuple(BIST30_TICKERS.keys())
+    tickers = tuple(BIST100_TICKERS.keys())
 
     loading = st.empty()
     loading.html(skeleton_html("list"))
     try:
-        histories = get_multiple_price_histories(tickers)
+        table_df, last_date = _scan(tickers)
     except DataFetchError as exc:
         loading.empty()
         error_state(str(exc), key="tr_retry")
         return
     loading.empty()
 
-    table_df, last_date = _build_rows(histories, tickers)
     if table_df.empty:
         error_state(TR_NO_DATA, key="tr_retry_empty")
         return
@@ -224,19 +254,5 @@ def render(device: str, ctx: dict) -> None:
     _render_summary(table_df)
     st.caption(caption)
 
-    heat_items = [
-        (row[TR_COL_TICKER], row[TR_COL_COMPANY], row[TR_COL_CHANGE]) for _, row in table_df.iterrows()
-    ]
-    if device == DESKTOP:
-        heat_col, table_col = st.columns([5, 7], gap="large")
-        with heat_col:
-            section_title(TR_HEATMAP_TITLE)
-            heat_grid(heat_items)
-        with table_col:
-            section_title(TR_LIST_TITLE)
-            _render_results(table_df, device)
-    else:
-        section_title(TR_HEATMAP_TITLE)
-        heat_grid(heat_items)
-        section_title(TR_LIST_TITLE)
-        _render_results(table_df, device)
+    section_title(TR_LIST_TITLE, TR_LIST_CAPTION)
+    _render_results(table_df, device)

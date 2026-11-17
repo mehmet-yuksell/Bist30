@@ -1,15 +1,15 @@
-# BIST 30 Teknik Analiz Paneli
+# BIST 100 Teknik Analiz Paneli
 
 **[▶ Canlı demo](https://bist30-opsputfhf9b9i6kkjnyefc.streamlit.app/)** · [![tests](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml/badge.svg)](https://github.com/mehmet-yuksell/Bist30/actions/workflows/ci.yml)
 
-Borsa İstanbul'daki BIST 30 endeksi hisseleri için teknik analiz göstergelerini
+Borsa İstanbul'daki BIST 100 endeksi hisseleri için teknik analiz göstergelerini
 görselleştiren, Streamlit ile yazılmış Türkçe bir web uygulaması.
 
 ![Masaüstü görünüm](docs/masaustu.png)
 
 <p align="center">
   <img src="docs/mobil-hisse-detay.png" width="260" alt="Telefonda Hisse Detay">
-  <img src="docs/mobil-tarama.png" width="260" alt="Telefonda BIST 30 Tarama">
+  <img src="docs/mobil-tarama.png" width="260" alt="Telefonda BIST 100 Tarama">
   <img src="docs/mobil-karsilastirma.png" width="260" alt="Telefonda Karşılaştırma">
 </p>
 
@@ -20,26 +20,28 @@ built with Streamlit. It fetches daily OHLCV data from Yahoo Finance and
 computes SMA, EMA, RSI (Wilder's method), MACD and Bollinger Bands from
 scratch with pandas/numpy (no third-party TA library). Three tabs: a
 single-stock detail view — searchable across the ~630 Borsa İstanbul stocks
-that have current Yahoo Finance data, not just the top 30 — with candlestick charts, a plain-language
+that have current Yahoo Finance data, not just the top 100 — with candlestick charts, a plain-language
 technical summary, a TL/USD currency toggle, and a **"Sinyal Karnesi"**
 section that backtests three simple long-only signals (RSI oversold/
 overbought, MACD crossover, 50/200 SMA golden/death cross) with strict
 no-look-ahead execution (signal at close, trade at next day's open) and
-configurable transaction costs; a sortable/filterable screener for the
-BIST 30 constituents with a daily-change heatmap; and a multi-stock
+configurable transaction costs; a screener for the BIST 100 constituents
+ranked by the **Bluetsman buy system** (a TradingView Pine Script indicator
+ported 1:1 to pandas: EMA 13/34 crossover + volume + RSI + momentum + MACD +
+Supertrend + ADX, scored 0-100); and a multi-stock
 comparison view with normalized returns and a correlation heatmap.
 Educational project — not investment advice.
 
 ## Özellikler
 
 ### 📈 Hisse Detay
-- Borsa İstanbul'da Yahoo Finance'te güncel verisi bulunan **~630 hissenin tamamında** sembol veya şirket adıyla arama (sadece BIST 30 değil); listede yalnızca sonuç gösterebilen hisseler yer alır
+- Borsa İstanbul'da Yahoo Finance'te güncel verisi bulunan **~630 hissenin tamamında** sembol veya şirket adıyla arama (sadece BIST 100 değil); listede yalnızca sonuç gösterebilen hisseler yer alır
 - Üstte özet kartı: son fiyat, günlük değişim rozeti (▲/▼), 52 hafta en yüksek/en düşük, hacim, RSI
 - Mum grafiği + hacim; SMA(50)/SMA(200)/EMA(20)/Bollinger Bantları "chip" düğmeleriyle aç-kapa
 - Grafik dönemi seçimi (1A / 3A / 6A / 1Y / Tümü) — telefonda varsayılan son 3 ay
 - Altta ayrı paneller halinde RSI (30/70 referans çizgileriyle) ve MACD
 - **TL / USD görünüm anahtarı** — fiyatlar ve tüm göstergeler USDTRY kuruyla gerçek zamanlı dönüştürülür (kur etkisinden arındırılmış performans için)
-- **Teknik Özet** kartı: RSI bölgesi, MACD kesişimi, fiyatın hareketli ortalamalara göre konumu, altın/ölüm kesişimi — rozetli satırlar halinde, tamamen tarafsız dille, "AL/SAT" ifadesi hiç kullanılmaz
+- **Teknik Özet** kartı: RSI bölgesi, MACD kesişimi, fiyatın hareketli ortalamalara göre konumu, altın/ölüm kesişimi — rozetli satırlar halinde, tamamen tarafsız dille, "AL/SAT" ifadesi hiç kullanılmaz (alım sinyali yalnızca Bluetsman bölümünde, göstergenin kendi adıyla geçer)
 - Her gösterge yanında "Bu ne anlama gelir?" açılır açıklama kutusu
 
 ### 🎯 Sinyal Karnesi (backtest)
@@ -55,11 +57,24 @@ Hisse Detay sekmesinin içinde, üç basit teknik sinyalin **geçmiş performans
 - Getiri eğrileri karşılaştırması; fiyat grafiğinde işaretlenmiş giriş/çıkış noktaları
 - İşlem sayısı 10'un altındaysa "örnek sayısı yetersiz" uyarısı
 
-### 🔍 BIST 30 Tarama
-- Özet şeridi: yükselen / düşen hisse sayısı, en çok yükselen ve en çok düşen
-- Günlük değişime göre renklendirilmiş ısı haritası (telefonda 5, geniş ekranda 6 sütun)
-- Tablo görünümü (sütun başlığına tıklayarak sıralama) veya telefona uygun kompakt liste görünümü
-- Trend durumuna ve hisse/şirket adına göre filtreleme
+### 🔍 BIST 100 Tarama (açılış sekmesi)
+- Liste Borsa İstanbul'un resmî endeks bileşen dosyasından alınır (`config.py`, kaynak ve tarihle)
+- Özet şeridi: yükselen / düşen hisse sayısı, bugün ve son 10 işlem gününde Bluetsman alım sinyali veren hisse sayısı
+- Her hisse için Bluetsman skoru (0-100), sağlanan koşul sayısı (x/8) ve son sinyalin kaç gün önce oluştuğu
+- "Son 10 günde sinyal verenler" filtresi ve hisse/şirket adıyla arama
+- Görünüm cihaza göre seçilir: masaüstünde sıralanabilir tablo, telefonda kompakt liste
+
+### 🔷 Bluetsman Alım Sistemi
+TradingView'deki "Bluetsman — Piyasanın Efendisi (Alım)" Pine Script göstergesinin
+`bluetsman.py`'deki birebir karşılığı (`ta.rma`, `ta.tr`, `ta.atr`, kesişim ve `na`
+davranışı dahil):
+- Sekiz koşul: EMA 13'ün EMA 34'ü yukarı kesmesi, hacim > 20 günlük ortalama × 1,05,
+  RSI(14) > 50, momentum > 0, MACD histogramı > 0, fiyat > EMA 34, Supertrend (10, 3)
+  yukarı, ADX(14) > 20. Sekizi aynı gün sağlanınca sinyal oluşur.
+- Skor 0-100 (göstergedeki puan tablosu; 70+ yeşil, 40+ turuncu)
+- Hisse Detay'da: grafikte EMA 13/34 ve mavi sinyal üçgenleri, bugünkü skor ve koşul
+  ızgarası (✓/✗ ve değerleri), geçmiş sinyaller ve her birinin 10 işlem günü sonraki getirisi
+- Hesap her zaman TL fiyatla yapılır (göstergedeki momentum ve MACD eşikleri TL cinsindendir)
 
 ### ⚖️ Karşılaştırma
 - Aynı ~630 hisselik liste arasından 2 ile 5 arasında seçip aynı grafikte karşılaştırın
@@ -111,26 +126,28 @@ playwright install chromium
 ```
 app.py              Giriş noktası: sayfa ayarları, başlık, sekmeler, alt bilgi
 tabs/
-  hisse_detay.py    Hisse Detay sekmesi + Teknik Özet + Sinyal Karnesi
-  tarama.py         BIST 30 Tarama sekmesi
+  hisse_detay.py    Hisse Detay sekmesi + Bluetsman + Teknik Özet + Sinyal Karnesi
+  tarama.py         BIST 100 Tarama sekmesi (Bluetsman skoru ve sinyalleri)
   karsilastirma.py  Karşılaştırma sekmesi
 ui/
   theme.py          Tasarım token'ları (renk, boşluk, yarıçap) — CSS ve Plotly ortak kaynağı
   styles.py         CSS tasarım sistemi + mobil öncelikli medya sorguları
-  components.py     HTML bileşenleri (hero, kartlar, rozetler, ısı haritası, liste, durumlar)
+  components.py     HTML bileşenleri (hero, kartlar, rozetler, sinyal kartı, liste, durumlar)
   charts.py         Plotly grafik oluşturucuları (ortak mobil/masaüstü düzeni)
   controls.py       Ortak form kontrolleri (hisse arama, tarih aralığı)
   format.py         Türkçe sayı/tarih biçimlendirme (1.234,56 · %+1,23 · gg.aa.yyyy)
   viewport.py       Ekran genişliği sınıfını (telefon/tablet/masaüstü) Python'a bildirir
-config.py           BIST 30 hisse listesi (son güncelleme tarihiyle birlikte)
+config.py           BIST 100 hisse listesi (Borsa İstanbul kaynağı ve tarihiyle)
 data.py             Yahoo Finance'den veri çekme, önbellekleme, hata yönetimi
 indicators.py       SMA, EMA, RSI (Wilder), MACD, Bollinger Bantları — sıfırdan
 signals.py          Gösterge değerlerinden tarafsız Türkçe gözlem metinleri
+bluetsman.py        Bluetsman alım sistemi (Pine Script'in birebir karşılığı)
 backtest.py         Sinyal Karnesi: look-ahead içermeyen basit backtest motoru
 ui_text.py          Tüm arayüz metinleri (tek merkezden yönetim)
 data/bist_all.csv   KAP kaynaklı şirket listesi + Yahoo'da güncel verisi olup olmadığı (yahoo_data)
 tools/
   update_yahoo_coverage.py  bist_all.csv'deki yahoo_data işaretlerini yeniden hesaplar
+  check_bist100.py          config'teki BIST 100 listesini Borsa İstanbul'un güncel dosyasıyla karşılaştırır
 tests/              pytest testleri
 docs/               Ekran görüntüleri
 ```
@@ -177,9 +194,15 @@ ile sıfırdan yazılmıştır.
 
 ## Sınırlamalar
 
-- **BIST 30 listesi sabittir.** Endeks bileşenleri üç ayda bir değişebilir;
-  bu projedeki liste `config.py` içinde belirtilen tarihte doğrulanmıştır ve
-  otomatik güncellenmez.
+- **BIST 100 listesi elle güncellenir.** Endeks bileşenleri üç ayda bir
+  değişebilir; liste `config.py` içinde belirtilen tarihte doğrulanmıştır.
+  `python tools/check_bist100.py` farkları gösterir.
+- **Bugünkü mum kapanmadan kesin değildir.** Seans içinde son gün henüz
+  tamamlanmadığı için hacim düşük görünebilir; bugünkü skor ve sinyal kapanışa
+  kadar değişebilir (TradingView'de de aynıdır).
+- **Bluetsman skoru hisseler arasında tam karşılaştırılabilir değildir.**
+  Momentum (0-2 TL) ve MACD histogramı (0-1) puanları göstergede TL cinsinden
+  sabit eşiklerle ölçülür; pahalı hisseler bu puanları daha kolay doldurur.
 - **Veriler gecikmelidir.** Yahoo Finance üzerinden alınan fiyatlar gerçek
   zamanlı değildir.
 - **Eğitim amaçlıdır, yatırım tavsiyesi değildir.** Göstergeler yalnızca
@@ -192,10 +215,9 @@ ile sıfırdan yazılmıştır.
   güncel verisi olan ~630'u listelenir. Yeni halka arzlar ya da işlemden
   kaldırılan hisseler için `python tools/update_yahoo_coverage.py`
   yeniden çalıştırılmalıdır.
-- **BIST 30 Tarama her zaman sadece 30 hisseyi gösterir.** Hisse Detay ve
-  Karşılaştırma'daki geniş arama (~630 hisse) bilinçli olarak bu
-  sekmeye uygulanmadı; yüzlerce hisseyi tek seferde çekmek Yahoo
-  Finance'in hız sınırlarına takılabilir.
+- **Tarama yalnızca BIST 100'ü kapsar.** Hisse Detay ve Karşılaştırma'daki
+  geniş arama (~630 hisse) bilinçli olarak bu sekmeye uygulanmadı; yüzlerce
+  hisseyi tek seferde çekmek Yahoo Finance'in hız sınırlarına takılabilir.
 - **Sinyal Karnesi gerçek bir yatırım stratejisi değildir, basitleştirilmiş
   bir eğitim modelidir.** Vergi, kayma (slippage) ve likidite dikkate
   alınmaz; parametreler sabittir ve hisseye özel optimize edilmemiştir;

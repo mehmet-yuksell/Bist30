@@ -42,10 +42,9 @@ def _render_correlation(histories: dict, tickers: list[str], device: str) -> Non
 
 
 def _render_explanations() -> None:
-    with st.expander(f"{EXPANDER_LABEL} (Normalize Getiri)", icon=EXPANDER_ICON):
-        st.write(EXPLANATIONS["normalized_return"])
-    with st.expander(f"{EXPANDER_LABEL} (Korelasyon)", icon=EXPANDER_ICON):
-        st.write(EXPLANATIONS["correlation"])
+    with st.expander(EXPANDER_LABEL, icon=EXPANDER_ICON):
+        st.markdown(f"**Normalize getiri** — {EXPLANATIONS['normalized_return']}")
+        st.markdown(f"**Korelasyon** — {EXPLANATIONS['correlation']}")
 
 
 @st.fragment
@@ -125,7 +124,6 @@ def render(device: str, ctx: dict) -> None:
         with corr_col:
             _render_correlation(histories, valid_tickers, device)
         with explain_col:
-            section_title(EXPANDER_LABEL)
             _render_explanations()
     else:
         render_rank()
