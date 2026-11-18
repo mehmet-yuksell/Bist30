@@ -14,7 +14,7 @@ import market
 import panel_veri as pv
 import takip
 from data import DataFetchError, load_all_bist_symbols
-from ui import kalite_ui, takip_deposu
+from ui import takip_deposu
 from ui.components import callout, error_state, section_title, skeleton_html, tagged_list
 from ui.controls import symbol_formatter
 from ui.format import fmt_num, fmt_pct
@@ -34,16 +34,12 @@ from ui_text import (
     TK_CAPTION,
     TK_COL_CHANGE,
     TK_COL_CODE,
-    TK_COL_GRADE,
     TK_COL_NOTE,
     TK_COL_PL_PCT,
     TK_COL_PL_TL,
-    TK_COL_PRESSURE,
     TK_COL_PRICE,
     TK_COL_SCORE,
     TK_COL_SIGNAL,
-    TK_COL_STOP,
-    TK_COL_TARGET,
     TK_DOWNLOAD,
     TK_EDIT_DELETE,
     TK_EDIT_SAVE,
@@ -51,7 +47,6 @@ from ui_text import (
     TK_EDIT_TITLE,
     TK_EMPTY,
     TK_HELD,
-    TK_LEVEL_NOTE,
     TK_LOADING,
     TK_NO_DATA,
     TK_NOT_FOUND,
@@ -65,24 +60,18 @@ from ui_text import (
     TK_UPLOAD_APPLY,
     TK_UPLOAD_BAD,
     TK_UPLOAD_OK,
-    TK_VADE_SHORT,
     VADE_BUGUN,
     VADE_ONCE,
+    VADE_SHORT,
 )
 
-ENDEKS = "XU100"
 BOS = "—"
 
 
 @st.cache_data(max_entries=8, show_spinner=False)
 def _satirlar(data_key: str, liste_json: str, _histories: dict) -> list[dict]:
     """Takip hisselerinin satırları; aynı veri ve aynı liste için bir kez hesaplanır."""
-    endeks = pv.endeks_girdisi(_histories.get(ENDEKS))
-    return [takip.satir(k, _histories.get(k["kod"]), endeks) for k in takip.json_oku(liste_json)]
-
-
-def _not_bul(skor: float, vade: str) -> str | None:
-    return kalite_ui.ozet(skor, vade, True if vade == pv.ORTA else None)["grade"]
+    return [takip.satir(k, _histories.get(k["kod"])) for k in takip.json_oku(liste_json)]
 
 
 def _son_sinyal(v: dict | None, vade: str) -> str:
@@ -176,15 +165,13 @@ def _yedek(liste: list[dict]) -> None:
 
 def _karar_ozeti(satirlar: list[dict]) -> None:
     section_title(TK_SUMMARY_TITLE, TK_SUMMARY_CAPTION)
-    gruplar = takip.karar_ozeti(satirlar, _not_bul)
+    gruplar = takip.karar_ozeti(satirlar)
     dolu = {g: v for g, v in gruplar.items() if v}
     if not dolu:
         callout("empty", None, TK_SUMMARY_NONE)
         return
     for grup, maddeler in dolu.items():
-        if grup == "al":
-            kalite_ui.alim_uyarisi()
-        tur = "warn" if grup in ("sat", "dikkat") else "info"
+        tur = "warn" if grup == "sat" else "info"
         callout(tur, takip.GRUPLAR[grup], [f"{kod}: {neden}" for kod, neden in maddeler])
 
 
@@ -201,13 +188,9 @@ def _tablo(satirlar: list[dict]) -> pd.DataFrame:
         r[TK_COL_PL_PCT] = fmt_pct(s["kz_pct"]) if s.get("kz_pct") is not None else BOS
         r[TK_COL_PL_TL] = fmt_num(s["kz_tl"], 0) if s.get("kz_tl") is not None else BOS
         for vade in (pv.KISA, pv.ORTA):
-            v, etiket = s.get(vade), TK_VADE_SHORT[vade]
+            v, etiket = s.get(vade), VADE_SHORT[vade]
             r[TK_COL_SCORE.format(v=etiket)] = fmt_num(v["skor"], 0) if v else BOS
-            r[TK_COL_GRADE.format(v=etiket)] = (_not_bul(v["skor"], vade) or BOS) if v and v["skor"] >= 60 else BOS
-            r[TK_COL_PRESSURE.format(v=etiket)] = fmt_num(v["satis_baskisi"], 0) if v else BOS
             r[TK_COL_SIGNAL.format(v=etiket)] = _son_sinyal(v, vade)
-            r[TK_COL_STOP.format(v=etiket)] = fmt_num(v["stop"], 2) if v else BOS
-            r[TK_COL_TARGET.format(v=etiket)] = fmt_num(v["hedef"], 2) if v else BOS
         r[TK_COL_NOTE] = s.get("not", "")
         kayitlar.append(r)
     return pd.DataFrame(kayitlar)
@@ -223,8 +206,7 @@ def _mobil_liste(satirlar: list[dict]) -> None:
         for vade in (pv.KISA, pv.ORTA):
             v = s.get(vade)
             if v:
-                parcalar.append(f"{TK_VADE_SHORT[vade]}: skor {fmt_num(v['skor'], 0)}, baskı "
-                                f"{fmt_num(v['satis_baskisi'], 0)}, {_son_sinyal(v, vade)}")
+                parcalar.append(f"{VADE_SHORT[vade]}: skor {fmt_num(v['skor'], 0)}, {_son_sinyal(v, vade)}")
         kz = f"K/Z {fmt_pct(s['kz_pct'])}" if s.get("kz_pct") is not None else ""
         satir_listesi.append({
             "ticker": s["kod"], "name": " · ".join(x for x in (fmt_num(s["fiyat"], 2), kz, s.get("not", "")) if x),
@@ -263,6 +245,5 @@ def render(device: str, ctx: dict) -> None:
         _mobil_liste(satirlar)
     else:
         st.dataframe(_tablo(satirlar), hide_index=True, width="stretch")
-    st.caption(TK_LEVEL_NOTE)
     _duzenleme(liste)
     _yedek(liste)

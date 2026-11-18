@@ -1,9 +1,10 @@
-"""Bluetsman — Piyasanın Efendisi (Alım) göstergesinin Python karşılığı.
+"""Bluetsman — Piyasanın Efendisi Alım ve Sat göstergelerinin Python karşılığı.
 
-Kaynak, TradingView Pine Script v5 göstergesidir ("Alım 1.2 Final Sürüm"). Hesaplar,
-TradingView'deki sonuçla aynı çıkacak şekilde birebir aktarılmıştır; göstergenin kendine
-özgü tercihleri (ör. hacim puanının pratikte hep 15 olması, momentum ve MACD puanlarının
-TL cinsinden sabit eşiklerle ölçülmesi, standart dışı Supertrend) bilinçli olarak korunur.
+Kaynak, iki TradingView Pine Script v5 göstergesidir: "Alım 1.2 Final Sürüm" (compute) ve
+"Satım 1.2 Final Sürüm" (compute_sell). Hesaplar, TradingView'deki sonuçla aynı çıkacak
+şekilde birebir aktarılmıştır; göstergelerin kendine özgü tercihleri (ör. hacim puanının
+pratikte hep 15 olması, momentum ve MACD puanlarının TL cinsinden sabit eşiklerle ölçülmesi,
+standart dışı Supertrend, satışta 7 periyotluk ADX düzeltmesi) bilinçli olarak korunur.
 
 Pine'daki karşılıklar:
 - ta.ema -> indicators.ema (ilk değerle başlayan üssel ortalama, Pine ile aynı)
@@ -42,6 +43,25 @@ MAX_SCORE_PRICE = 20
 MAX_SCORE_SUPERTREND = 5
 MAX_SCORE_ADX = 10
 
+# Satım 1.2
+SELL_EMA_FAST = 5
+SELL_EMA_SLOW = 13
+SELL_SUPERTREND_FACTOR = 2.5
+SELL_ADX_SMOOTHING = 7
+SELL_MOMENTUM_BARS = 2
+KAR_AL_RANGE = (40, 60)   # mavi üçgen
+SAT_RANGE = (61, 100)     # kırmızı üçgen
+# Satış skorunun kalemleri ve puanları (Pine'daki sıra); skor yalnızca sinyal barında hesaplanır.
+SELL_POINTS = {
+    "rsi": 10,
+    "volume": 10,
+    "momentum": 15,
+    "macd": 6,
+    "adx": 15,
+    "ema_cross": 10,
+    "trend_up": 10,
+}
+
 # Sinyal için sekiz koşulun tamamı aynı gün sağlanmalıdır (Pine'daki buySignal).
 CONDITIONS = (
     "ema_cross",
@@ -53,6 +73,10 @@ CONDITIONS = (
     "supertrend",
     "adx",
 )
+MAX_POINTS = dict(zip(CONDITIONS, (
+    MAX_SCORE_EMA, MAX_SCORE_VOLUME, MAX_SCORE_RSI, MAX_SCORE_MOMENTUM,
+    MAX_SCORE_MACD, MAX_SCORE_PRICE, MAX_SCORE_SUPERTREND, MAX_SCORE_ADX,
+)))
 
 
 def condition_score(value: pd.Series, low: float, high: float, max_score: float) -> pd.Series:
@@ -89,7 +113,8 @@ def true_range(df: pd.DataFrame, handle_na: bool = False) -> pd.Series:
     return tr
 
 
-def adx(df: pd.DataFrame, length: int = ADX_LENGTH) -> pd.Series:
+def adx(df: pd.DataFrame, length: int = ADX_LENGTH, smoothing: int | None = None) -> pd.Series:
+    """DI'lar `length`, ADX `smoothing` (verilmezse `length`) periyotla düzeltilir."""
     up_move = df["High"] - df["High"].shift(1)
     down_move = df["Low"].shift(1) - df["Low"]
     plus_dm = pd.Series(np.where((up_move > down_move) & (up_move > 0), up_move, 0.0), index=df.index)
@@ -99,7 +124,7 @@ def adx(df: pd.DataFrame, length: int = ADX_LENGTH) -> pd.Series:
     minus_di = 100 * rma(minus_dm, length) / trur
     with np.errstate(divide="ignore", invalid="ignore"):
         dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
-    return rma(dx.replace([np.inf, -np.inf], np.nan), length)
+    return rma(dx.replace([np.inf, -np.inf], np.nan), smoothing or length)
 
 
 def supertrend(df: pd.DataFrame, length: int = ATR_LENGTH, factor: float = SUPERTREND_FACTOR):
@@ -170,6 +195,8 @@ def compute(df: pd.DataFrame) -> pd.DataFrame:
         np.where(out["supertrend"], condition_score(st_distance, 0, 5, MAX_SCORE_SUPERTREND), 0.0),
         np.where(out["adx"], condition_score(adx_value, ADX_THRESHOLD, 50, MAX_SCORE_ADX), 0.0),
     ]
+    for condition, points in zip(CONDITIONS, scores):
+        out[f"p_{condition}"] = np.nan_to_num(points)
     out["score"] = np.clip(np.nansum(scores, axis=0), 0, 100)
     out["buy_signal"] = out[list(CONDITIONS)].all(axis=1)
 
@@ -179,6 +206,42 @@ def compute(df: pd.DataFrame) -> pd.DataFrame:
     out["macd_hist"] = macd_hist
     out["adx_value"] = adx_value
     out["volume_ratio"] = volume / volume_sma
+    return out
+
+
+def compute_sell(df: pd.DataFrame) -> pd.DataFrame:
+    """Satım 1.2: her bar için satış koşulları, satış skoru ve KAR AL / SAT sinyalleri.
+
+    Pine'da skor yalnızca sinyal barında (Supertrend yukarıyken EMA 5'in EMA 13'ü aşağı
+    kestiği bar) hesaplanır; diğer barlarda 0'dır. Skor 40-60 ise KAR AL, 61-100 ise SAT
+    gösterilir (en fazla 76 puan; 40'ın altındaki sinyallerde gösterge işaret koymaz).
+    Döner sütunlar: ema_5, ema_13, SELL_POINTS'taki her koşul (bool), p_<koşul> (koşul bugün
+    sağlanıyorsa puanı), sell_signal, sell_score, kar_al, sat.
+    """
+    close = df["Close"]
+    volume = df["Volume"].astype(float)
+    ema_fast = ema(close, SELL_EMA_FAST)
+    ema_slow = ema(close, SELL_EMA_SLOW)
+    _, trend_up = supertrend(df, ATR_LENGTH, SELL_SUPERTREND_FACTOR)
+
+    out = pd.DataFrame(index=df.index)
+    out["ema_5"] = ema_fast
+    out["ema_13"] = ema_slow
+    out["rsi"] = rsi(close, RSI_LENGTH) > 50
+    out["volume"] = volume > volume.rolling(VOLUME_LENGTH).mean() * VOLUME_MULTIPLIER
+    out["momentum"] = (close - close.shift(SELL_MOMENTUM_BARS)) > 0
+    out["macd"] = macd(close)["histogram"] > 0
+    out["adx"] = adx(df, ADX_LENGTH, SELL_ADX_SMOOTHING) > ADX_THRESHOLD
+    out["ema_cross"] = (ema_fast < ema_slow) & (ema_fast.shift(1) >= ema_slow.shift(1))
+    out["trend_up"] = trend_up
+    for condition, points in SELL_POINTS.items():
+        out[f"p_{condition}"] = np.where(out[condition], float(points), 0.0)
+
+    out["sell_signal"] = out["trend_up"] & out["ema_cross"]
+    total = out[[f"p_{c}" for c in SELL_POINTS]].sum(axis=1)
+    out["sell_score"] = total.where(out["sell_signal"], 0.0)
+    out["kar_al"] = out["sell_signal"] & out["sell_score"].between(*KAR_AL_RANGE)
+    out["sat"] = out["sell_signal"] & out["sell_score"].between(*SAT_RANGE)
     return out
 
 

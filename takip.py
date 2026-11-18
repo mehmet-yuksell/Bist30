@@ -3,13 +3,12 @@
 Liste kaydı: {"kod": "THYAO", "alis": 310.5 | None, "adet": 100 | None, "not": "..."}.
 Alış fiyatı girilmiş hisse "elimde var" sayılır.
 
-Karar özeti (bir hisse birden fazla grupta olabilir; "yakın" = son 5 bar içinde):
-- Satışı değerlendir: elimde ve SAT/ÇIK sinyali geldi ya da son alım sinyalinin stop'u kırıldı.
-- Kâr almayı düşün: elimde ve KAR AL geldi ya da son alım sinyalinin hedefine ulaştı.
-- Alımı değerlendir: elimde değil ve notu A/B olan alım sinyali ya da bugün FIRSAT sinyali geldi.
-  Orta vadede not sistemi doğrulanmadığı için orta vade sinyalleri bu gruba girmez.
-- Takipte kal: hızlı EMA yavaş EMA'nın %1'inden yakın ve alım skoru son 3 gündür yükseliyor (kısa vade).
-- Dikkat: hisse düşen bıçak riski listesinde.
+Karar özeti (bir hisse birden fazla grupta olabilir; "yakın" = son 5 bar içinde; sinyaller
+yalnızca Bluetsman Alım 1.2 ve Satım 1.2'den, iki vade için ayrı ayrı):
+- Satışı değerlendir: elimde ve SAT sinyali geldi.
+- Kâr almayı düşün: elimde ve KAR AL sinyali geldi.
+- Alımı değerlendir: elimde değil, alım sinyali geldi ve ardından satış sinyali gelmedi.
+- Takipte kal: EMA 13 EMA 34'ün %1'inden yakın ve alım skoru son 3 bardır yükseliyor (günlük).
 """
 
 import json
@@ -22,7 +21,7 @@ import panel_veri as pv
 
 KOD_DESENI = re.compile(r"^[A-Z0-9]{2,6}$")
 SURUM = 1
-SINYAL_PENCERESI = 10  # son sinyal ve stop/hedef için bakılan bar
+SINYAL_PENCERESI = 10  # son sinyal için bakılan bar
 YAKIN = 5              # karar özetinde "geldi" sayılan bar
 EMA_YAKINLIK = 0.01
 
@@ -31,7 +30,6 @@ GRUPLAR = {
     "kar": "🟡 Kâr almayı düşün",
     "al": "🟢 Alımı değerlendir",
     "izle": "👀 Takipte kal",
-    "dikkat": "⚠️ Dikkat",
 }
 
 
@@ -116,30 +114,23 @@ def ekstra_kodlar(liste: list[dict], bist100: set[str] | dict) -> tuple[str, ...
 # ---------------------------------------------------------------------------
 
 def vade_ozeti(sonuc: pd.DataFrame | None) -> dict | None:
-    """Bir vadenin son bar özeti: skor, satış baskısı, son alım/satış sinyali, stop/hedef."""
+    """Bir vadenin son bar özeti: alım skoru, son alım/satış sinyali, EMA yakınlığı."""
     if sonuc is None or sonuc.empty:
         return None
     son = sonuc.iloc[-1]
-    al = pv.al_sinyalleri(sonuc, SINYAL_PENCERESI)
-    al = al[0] if al else None
-    sat = pv.son_satis(sonuc, SINYAL_PENCERESI)
-    skorlar = sonuc["Alim_skor"].iloc[-3:].to_numpy()
-    yavas = float(son["EMA_yavas"])
+    skorlar = sonuc["score"].iloc[-3:].to_numpy()
+    yavas = float(son["ema_slow"])
     return {
-        "skor": float(son["Alim_skor"]),
-        "satis_baskisi": float(son["Satis_skor"]),
-        "al": al,                      # {once, skor, stop, hedef, ...} ya da None
-        "sat": sat,                    # {ad, tur, once, ...} ya da None
-        # Stop/hedef: son alım sinyalininki; yoksa bugünkü bara göre (kapanış ∓ ATR katları)
-        "stop": al["stop"] if al else float(son["Stop"]),
-        "hedef": al["hedef"] if al else float(son["Hedef"]),
-        "seviye_sinyalden": al is not None,
+        "skor": float(son["score"]),
+        "al": pv.son_alim(sonuc, SINYAL_PENCERESI),     # {once, skor, fiyat, ...} ya da None
+        "acik_al": pv.acik_alim(sonuc, YAKIN + 1),      # ardından satış gelmemiş yakın alım sinyali
+        "sat": pv.son_satis(sonuc, SINYAL_PENCERESI),   # {tur, ad, once, skor, ...} ya da None
         "skor_artiyor": len(skorlar) == 3 and bool(skorlar[0] < skorlar[1] < skorlar[2]),
-        "ema_yakin": yavas > 0 and abs(float(son["EMA_hizli"]) - yavas) / yavas < EMA_YAKINLIK,
+        "ema_yakin": yavas > 0 and abs(float(son["ema_fast"]) - yavas) / yavas < EMA_YAKINLIK,
     }
 
 
-def satir(kayit: dict, df: pd.DataFrame | None, endeks: pd.DataFrame | None) -> dict:
+def satir(kayit: dict, df: pd.DataFrame | None) -> dict:
     """Bir takip listesi hissesinin iki vade özeti, fiyat ve (elimdeyse) kâr/zarar."""
     out = {**kayit, "veri": df is not None and len(df) >= 2}
     if not out["veri"]:
@@ -148,10 +139,8 @@ def satir(kayit: dict, df: pd.DataFrame | None, endeks: pd.DataFrame | None) -> 
     fiyat = float(close.iloc[-1])
     out["fiyat"] = fiyat
     out["degisim"] = float((close.iloc[-1] / close.iloc[-2] - 1) * 100)
-    out[pv.KISA] = vade_ozeti(pv.analiz(df, pv.KISA))
-    out[pv.ORTA] = vade_ozeti(pv.analiz(df, pv.ORTA, endeks)) if endeks is not None else None
-    fs = pv.firsat_analizi(df, endeks)
-    out["firsat"] = pv.firsat_durumu(fs) if fs is not None else None
+    for vade in (pv.KISA, pv.ORTA):
+        out[vade] = vade_ozeti(pv.analiz(df, vade))
     if elimde(kayit):
         out["kz_pct"] = (fiyat / kayit["alis"] - 1) * 100
         out["kz_tl"] = (fiyat - kayit["alis"]) * kayit["adet"] if kayit.get("adet") else None
@@ -162,38 +151,25 @@ def satir(kayit: dict, df: pd.DataFrame | None, endeks: pd.DataFrame | None) -> 
 # Karar özeti
 # ---------------------------------------------------------------------------
 
-def karar_ozeti(satirlar: list[dict], not_bul) -> dict[str, list[tuple[str, str]]]:
-    """{grup: [(kod, neden)]}. not_bul(skor, vade) -> 'A'|'B'|'C'|None (doğrulanmış not)."""
+def karar_ozeti(satirlar: list[dict]) -> dict[str, list[tuple[str, str]]]:
+    """{grup: [(kod, neden)]}."""
     gruplar = {g: [] for g in GRUPLAR}
     for s in satirlar:
         if not s.get("veri"):
             continue
-        kod, fiyat, sahip = s["kod"], s["fiyat"], elimde(s)
+        kod, sahip = s["kod"], elimde(s)
         for vade in (pv.KISA, pv.ORTA):
             v = s.get(vade)
             if not v:
                 continue
-            etiket = "kısa" if vade == pv.KISA else "orta"
-            sat, al = v["sat"], v["al"]
-            if sahip:
-                if sat and sat["tur"] in ("SAT", "CIK") and sat["once"] <= YAKIN:
-                    gruplar["sat"].append((kod, f"{sat['ad']} sinyali ({etiket} vade)"))
-                if al and fiyat < al["stop"]:
-                    gruplar["sat"].append((kod, f"stop kırıldı ({etiket} vade)"))
-                if sat and sat["tur"] == "KAR_AL" and sat["once"] <= YAKIN:
-                    gruplar["kar"].append((kod, f"KAR AL sinyali ({etiket} vade)"))
-                if al and fiyat >= al["hedef"]:
-                    gruplar["kar"].append((kod, f"hedefe ulaştı ({etiket} vade)"))
-            elif al and al["once"] <= YAKIN:
-                notu = not_bul(al["skor"], vade)
-                if notu in ("A", "B"):
-                    gruplar["al"].append((kod, f"not {notu} alım sinyali ({etiket} vade)"))
-        firsat = s.get("firsat")
-        if firsat and firsat["firsat"] and not sahip:
-            gruplar["al"].append((kod, "FIRSAT sinyali"))
+            etiket = "günlük" if vade == pv.KISA else "haftalık"
+            sat = v["sat"]
+            if sahip and sat and sat["once"] <= YAKIN:
+                grup = "sat" if sat["tur"] == "sat" else "kar"
+                gruplar[grup].append((kod, f"{sat['ad']} sinyali, skor {sat['skor']:.0f} ({etiket})"))
+            elif not sahip and v["acik_al"]:
+                gruplar["al"].append((kod, f"alım sinyali, skor {v['acik_al']['skor']:.0f} ({etiket})"))
         kisa = s.get(pv.KISA)
         if kisa and kisa["ema_yakin"] and kisa["skor_artiyor"]:
-            gruplar["izle"].append((kod, "EMA'lar kesişmeye yakın, skor 3 gündür yükseliyor"))
-        if firsat and firsat["bicak"]:
-            gruplar["dikkat"].append((kod, "düşen bıçak riski"))
+            gruplar["izle"].append((kod, "EMA 13 ile EMA 34 kesişmeye yakın, alım skoru 3 gündür yükseliyor"))
     return gruplar

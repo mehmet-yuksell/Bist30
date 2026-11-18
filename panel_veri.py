@@ -1,37 +1,85 @@
-"""Panel listeleri: motor ve FIRSAT çıktılarından ekranda gösterilecek özetler (arayüzden bağımsız).
+"""Panel verisi: ham Yahoo tablosundan Bluetsman Alım 1.2 ve Satım 1.2 sinyalleri (arayüzden bağımsız).
 
-- Kısa vade günlük, orta vade haftalık barlarla çalışır. Orta vadede alım sinyali, kabul edilmiş
-  alım filtrelerinden geçen AL_filtreli sütunudur (Aşama 2).
-- Haftalık son bar, haftanın son işlem günü (genelde cuma) kapanmadan tamamlanmış sayılmaz.
-- Satış uyarısında öncelik motorun tara() fonksiyonundaki gibidir: SAT > KAR AL > ÇIK.
+- girdi: Yahoo'nun OHLCV tablosunu göstergelerin beklediği biçime getirir ve Yahoo'nun kaçırdığı
+  ya da yanlış güne yazdığı bölünme/bedelsizleri onarır (bolunme_onar). Temettü düzeltmesi
+  yapılmaz: TradingView'in varsayılan grafiği de yalnızca bölünmeye göre düzeltilmiştir, böylece
+  sinyaller TradingView'de görülenle aynı fiyatlardan hesaplanır.
+- Günlük vade günlük, haftalık vade haftalık (cuma kapanışlı) barlarla çalışır; iki gösterge de
+  her iki vadede aynı Pine kurallarıyla hesaplanır. Haftalık son bar, haftanın son işlem günü
+  kapanmadan tamamlanmış sayılmaz.
+- Satış sinyalinin iki türü vardır: SAT (skor 61-100) ve KAR AL (skor 40-60).
 """
 
-import numpy as np
 import pandas as pd
 
-import firsat
-import motor_veri
-import tarayici_motor as motor
+import bluetsman
 
 KISA, ORTA = "kisa", "orta"
-VADE_AYARI = {KISA: motor.KISA_VADE, ORTA: motor.ORTA_VADE}
-ALIM_SUTUNU = "AL_filtreli"
-SATIS_TURLERI = (("SAT", "SAT"), ("KAR_AL", "KAR AL"), ("CIK", "ÇIK"))
+MIN_BARS = {KISA: 60, ORTA: 40}  # EMA 34 + ADX ısınması için en az bu kadar bar
+OHLC = ["Open", "High", "Low", "Close"]
+SATIS_TURLERI = (("sat", "SAT"), ("kar_al", "KAR AL"))  # öncelik sırası
+SATIS_ONEKI = "s_"
+
+# Borsa İstanbul'da günlük fiyat limiti ±%10'dur; açılış bu bandın dışındaysa o gün bir
+# kurumsal işlem (bölünme, bedelsiz/bedelli sermaye artırımı) vardır. Yukarı yönde eşik
+# yüksek tutulur: 15.02.2023'te deprem sonrası 5 günlük kapanışın ardından açılışta +%22'ye
+# varan gerçek boşluklar oluştu; bunlar onarılmamalıdır.
+SPLIT_DOWN_CLOSE = -0.125  # kapanıştan kapanışa en az bu kadar düşüş
+SPLIT_DOWN_OPEN = -0.105   # ve açılış boşluğu en az bu kadar aşağı
+SPLIT_UP_OPEN = 0.25       # yukarı yönde yalnızca bundan büyük açılış boşlukları
 
 
-def endeks_girdisi(endeks: pd.DataFrame | None) -> pd.DataFrame | None:
-    return motor_veri.motor_girdisi(endeks) if endeks is not None and len(endeks) else None
+def bolunme_onar(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
+    """Fiyat limitinin ötesindeki açılış boşluklarını kurumsal işlem sayıp geçmişi düzeltir.
 
-
-def analiz(df: pd.DataFrame, vade: str, endeks: pd.DataFrame | None = None) -> pd.DataFrame | None:
-    """Ham Yahoo tablosundan vadenin motor sonucu (orta vadede haftalık); veri azsa None.
-
-    endeks: motor_girdisi'nden geçmiş XU100 (orta vadenin piyasa filtresi için gerekir).
+    Oran açılış boşluğudur (Open_t / Close_t-1): yeni taban fiyat o günün açılışına yansır;
+    tahminin hatası en fazla o geceki gerçek piyasa hareketi kadardır. Olay gününden önceki
+    tüm fiyatlar oranla çarpılır, hacim bölünür (TL cinsinden işlem hacmi korunur).
+    Döner: (onarılmış tablo, [{tarih, oran}]).
     """
-    girdi = motor_veri.motor_girdisi(df)
-    if len(girdi) < motor_veri.MIN_BARS:
+    out = df.copy()
+    events = []
+    prev_close = out["Close"].shift(1)
+    close_change = out["Close"] / prev_close - 1
+    open_gap = out["Open"] / prev_close - 1
+    is_event = ((close_change <= SPLIT_DOWN_CLOSE) & (open_gap <= SPLIT_DOWN_OPEN)) | (open_gap >= SPLIT_UP_OPEN)
+    for date in out.index[is_event.fillna(False)]:
+        ratio = float(1 + open_gap[date])
+        before = out.index < date
+        out.loc[before, OHLC] = out.loc[before, OHLC] * ratio
+        out.loc[before, "Volume"] = out.loc[before, "Volume"] / ratio
+        events.append({"tarih": date, "oran": ratio})
+    return out, events
+
+
+def girdi(df: pd.DataFrame) -> pd.DataFrame:
+    """Open/High/Low/Close/Volume sütunlu, tarih indeksli, bölünme onarımlı günlük tablo."""
+    out = df[OHLC + ["Volume"]].astype(float).copy()
+    out.columns.name = None
+    index = pd.DatetimeIndex(out.index)
+    if index.tz is not None:
+        index = index.tz_localize(None)
+    out.index = index
+    out = out[~out.index.duplicated(keep="last")].sort_index()
+    out["Volume"] = out["Volume"].fillna(0.0)
+    out = out.dropna(subset=OHLC)
+    return bolunme_onar(out)[0]
+
+
+def haftalik(df: pd.DataFrame) -> pd.DataFrame:
+    """Günlük OHLCV'den cuma kapanışlı haftalık barlar (TradingView'in haftalık mumu gibi)."""
+    h = df.resample("W-FRI").agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"})
+    return h.dropna(subset=["Close"])
+
+
+def analiz(df: pd.DataFrame, vade: str) -> pd.DataFrame | None:
+    """Vadenin barları + Alım 1.2 sütunları + Satım 1.2 sütunları ('s_' önekli); veri azsa None."""
+    bars = girdi(df)
+    if vade == ORTA:
+        bars = haftalik(bars)
+    if len(bars) < MIN_BARS[vade]:
         return None
-    return motor.hisse_analiz(girdi, VADE_AYARI[vade], endeks if vade == ORTA else None)
+    return pd.concat([bars, bluetsman.compute(bars), bluetsman.compute_sell(bars).add_prefix(SATIS_ONEKI)], axis=1)
 
 
 def hafta_tamamlandi(son_gunluk: pd.Timestamp, son_hafta: pd.Timestamp) -> bool:
@@ -39,74 +87,76 @@ def hafta_tamamlandi(son_gunluk: pd.Timestamp, son_hafta: pd.Timestamp) -> bool:
     return pd.Timestamp(son_hafta) <= pd.Timestamp(son_gunluk)
 
 
-def al_sinyalleri(sonuc: pd.DataFrame, son_bar: int) -> list[dict]:
-    return motor_veri.al_sinyalleri(sonuc, son_bar, ALIM_SUTUNU)
+def _once(sonuc: pd.DataFrame, tarih) -> int:
+    return len(sonuc) - 1 - sonuc.index.get_loc(tarih)
 
 
-def satis_uyarisi(sonuc: pd.DataFrame, bar: int = -1) -> dict | None:
-    """Belirtilen bardaki en güçlü satış sinyali (SAT > KAR AL > ÇIK) ya da None."""
-    satir = sonuc.iloc[bar]
-    for sutun, ad in SATIS_TURLERI:
-        if bool(satir[sutun]):
-            return {"tur": sutun, "ad": ad, "skor": float(satir["Satis_skor"]), "rsi": float(satir["RSI"])}
+def satis_turu(satir: pd.Series) -> tuple[str, str] | None:
+    """Bir barın satış sinyali türü: ('sat', 'SAT') / ('kar_al', 'KAR AL') ya da None."""
+    for tur, ad in SATIS_TURLERI:
+        if bool(satir[SATIS_ONEKI + tur]):
+            return tur, ad
     return None
+
+
+def alim_sinyalleri(sonuc: pd.DataFrame, son_bar: int) -> list[dict]:
+    """Son `son_bar` bardaki Alım 1.2 sinyalleri, en yeni önce.
+
+    Her biri: once (kaç bar önce, 0 = son bar), tarih, skor, fiyat (sinyal kapanışı),
+    degisim (sinyal kapanışından son kapanışa %).
+    """
+    son_kapanis = float(sonuc["Close"].iloc[-1])
+    pencere = sonuc.iloc[-son_bar:]
+    return [
+        {"once": _once(sonuc, tarih), "tarih": tarih, "skor": float(satir["score"]),
+         "fiyat": float(satir["Close"]), "degisim": (son_kapanis / float(satir["Close"]) - 1) * 100}
+        for tarih, satir in pencere[pencere["buy_signal"].astype(bool)].iloc[::-1].iterrows()
+    ]
+
+
+def satis_sinyalleri(sonuc: pd.DataFrame, son_bar: int) -> list[dict]:
+    """Son `son_bar` bardaki KAR AL / SAT sinyalleri, en yeni önce: once, tarih, tur, ad, skor, fiyat."""
+    pencere = sonuc.iloc[-son_bar:]
+    sinyaller = []
+    for tarih, satir in pencere.iloc[::-1].iterrows():
+        tur = satis_turu(satir)
+        if tur:
+            sinyaller.append({"once": _once(sonuc, tarih), "tarih": tarih, "tur": tur[0], "ad": tur[1],
+                              "skor": float(satir[SATIS_ONEKI + "sell_score"]), "fiyat": float(satir["Close"])})
+    return sinyaller
+
+
+def son_alim(sonuc: pd.DataFrame, son_bar: int) -> dict | None:
+    sinyaller = alim_sinyalleri(sonuc, son_bar)
+    return sinyaller[0] if sinyaller else None
 
 
 def son_satis(sonuc: pd.DataFrame, son_bar: int) -> dict | None:
-    """Son `son_bar` bardaki en yeni satış sinyali: {tur, ad, once, skor}."""
-    for once in range(min(son_bar, len(sonuc))):
-        uyari = satis_uyarisi(sonuc, -1 - once)
-        if uyari:
-            return {**uyari, "once": once}
-    return None
+    sinyaller = satis_sinyalleri(sonuc, son_bar)
+    return sinyaller[0] if sinyaller else None
 
 
-def firsat_analizi(df: pd.DataFrame, endeks: pd.DataFrame | None = None) -> pd.DataFrame | None:
-    girdi = motor_veri.motor_girdisi(df)
-    if len(girdi) < motor_veri.MIN_BARS:
+def acik_alim(sonuc: pd.DataFrame, son_bar: int) -> dict | None:
+    """Son `son_bar` bardaki en yeni alım sinyali, ardından satış sinyali gelmediyse (yoksa None)."""
+    alim = son_alim(sonuc, son_bar)
+    satis = son_satis(sonuc, son_bar)
+    if alim is None or (satis is not None and satis["once"] < alim["once"]):
         return None
-    return firsat.firsat_hesapla(girdi, endeks)
+    return alim
 
 
-def firsat_durumu(fs: pd.DataFrame, ayar: firsat.FirsatAyari = firsat.VARSAYILAN) -> dict:
-    """Son gün için FIRSAT durumu.
+def sinyal_gecmisi(sonuc: pd.DataFrame, horizon: int = 10) -> pd.DataFrame:
+    """Tüm alım ve satış sinyalleri (en yeni üstte): tur, skor, kapanış, `horizon` bar sonraki getiri %.
 
-    firsat: bugün FIRSAT sinyali; bicak: bugün düşen bıçak riski listesinde; bekliyor: düşüş
-    bölümü açık, dönüş bekleniyor ve bıçak kriteri yok. Ayrıca görülen kriterler, uyarılar ve
-    risk seviyeleri (giriş yarın açılışta olacağı için 2R hedefi bugünkü kapanışa göre tahmindir).
+    Henüz `horizon` bar geçmemiş sinyallerde getiri NaN'dır. tur: 'alim', 'sat', 'kar_al'.
     """
-    son = fs.iloc[-1]
-    kriterler = [k for k in firsat.BICAK_KRITERLERI if bool(son[k])]
-    stop = float(son["Stop"])
-    kapanis = float(son["Close"])
-    return {
-        "firsat": bool(son["FIRSAT"]),
-        "bicak": bool(son["BICAK_RISKI"]),
-        "bekliyor": bool(son["kurulum_penceresi"]) and not bool(son["tetik"]) and not kriterler,
-        "kriterler": kriterler,
-        "uyari_hisseye_ozel": bool(son["uyari_hisseye_ozel"]),
-        "uyari_piyasa": bool(son["uyari_piyasa"]),
-        "stop": stop,
-        "ema_hedef": float(son["EMA_hedef"]),
-        "hedef_2r": kapanis + ayar.risk_odul * (kapanis - stop),
-        "rsi2": float(son["RSI2"]),
-        "dusus5": float(son["Close"] / fs["Close"].iloc[-6] - 1) if len(fs) > 5 else np.nan,
-    }
-
-
-def islem_istatistigi(trades: pd.DataFrame) -> dict:
-    """Bir hissenin tamamlanmış sinyal işlemleri: sayı, hedef/stop oranı, beklenen R, hedef günleri."""
-    if trades.empty:
-        return {"sinyal": 0, "hedef_gunleri": []}
-    bitti = trades[trades["sonuc"].isin(("hedef", "stop", "zaman"))]
-    hedef = bitti[bitti["sonuc"] == "hedef"]
-    if bitti.empty:
-        return {"sinyal": 0, "hedef_gunleri": []}
-    return {
-        "sinyal": int(len(bitti)),
-        "hedef_pct": float((bitti["sonuc"] == "hedef").mean() * 100),
-        "stop_pct": float((bitti["sonuc"] == "stop").mean() * 100),
-        "beklenen_r": float(bitti["r"].mean()),
-        "medyan_gun": float(hedef["gun"].median()) if len(hedef) else None,
-        "hedef_gunleri": [int(g) for g in hedef["gun"]],
-    }
+    forward = (sonuc["Close"].shift(-horizon) / sonuc["Close"] - 1) * 100
+    tur = pd.Series(None, index=sonuc.index, dtype=object)
+    for t, _ in reversed(SATIS_TURLERI):
+        tur[sonuc[SATIS_ONEKI + t].astype(bool)] = t
+    tur[sonuc["buy_signal"].astype(bool)] = "alim"
+    hits = tur.notna()
+    skor = sonuc["score"].where(tur == "alim", sonuc[SATIS_ONEKI + "sell_score"])
+    return pd.DataFrame({
+        "tur": tur[hits], "score": skor[hits], "close": sonuc.loc[hits, "Close"], "forward_return": forward[hits],
+    }).iloc[::-1]

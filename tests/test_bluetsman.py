@@ -133,3 +133,71 @@ def test_signal_history_forward_return():
     assert list(history.index) == [idx[4], idx[0]]  # en yeni üstte
     assert history["forward_return"].iloc[1] == pytest.approx(20.0)  # 10 -> 12
     assert np.isnan(history["forward_return"].iloc[0])  # 2 gün henüz geçmedi
+
+
+def test_condition_points_add_up_to_score():
+    rng = np.random.default_rng(11)
+    close = 50 * np.exp(np.cumsum(rng.normal(0.001, 0.02, 300)))
+    result = compute(_ohlcv(close, rng.uniform(5e5, 2e6, 300)))
+    total = result[[f"p_{c}" for c in bluetsman.CONDITIONS]].sum(axis=1).clip(0, 100)
+    assert total.to_numpy() == pytest.approx(result["score"].to_numpy())
+    for c, maximum in bluetsman.MAX_POINTS.items():
+        assert result[f"p_{c}"].between(0, maximum).all()
+        assert (result.loc[~result[c], f"p_{c}"] == 0).all()  # koşul sağlanmıyorsa puan yok
+
+
+def test_adx_smoothing_can_differ_from_di_length():
+    rng = np.random.default_rng(5)
+    close = 50 * np.exp(np.cumsum(rng.normal(0, 0.02, 120)))
+    df = _ohlcv(close)
+    assert bluetsman.adx(df, 14, 14).equals(bluetsman.adx(df))
+    fast = bluetsman.adx(df, 14, 7)
+    # DI'lar 15. barda başlar (ta.tr ilk barda na); ADX(7) 7, ADX(14) 14 bar sonra oluşur
+    assert fast.first_valid_index() < bluetsman.adx(df).first_valid_index()
+    assert fast.notna().sum() - bluetsman.adx(df).notna().sum() == 7
+
+
+def _pullback_df() -> pd.DataFrame:
+    """80 gün yavaş yükseliş (%0,3), 3 günlük geri çekilme (-%3) ve yeniden yükseliş."""
+    peak = 100 * 1.003 ** 79
+    close = np.concatenate([100 * 1.003 ** np.arange(80), peak * np.array([0.99, 0.98, 0.97]),
+                            peak * 0.97 * 1.003 ** np.arange(1, 15)])
+    return _ohlcv(close)
+
+
+def test_sell_signal_rules_follow_pine():
+    df = _pullback_df()
+    result = bluetsman.compute_sell(df)
+    diff = ema(df["Close"], 5) - ema(df["Close"], 13)
+    assert result["ema_cross"].equals((diff < 0) & (diff.shift(1) >= 0))
+    assert result["trend_up"].equals(bluetsman.supertrend(df, 10, 2.5)[1])
+    assert result["sell_signal"].equals(result["trend_up"] & result["ema_cross"])
+    assert result["sell_signal"].sum() >= 1  # geri çekilmede EMA 5, EMA 13'ün altına iner
+
+    points = result[[f"p_{c}" for c in bluetsman.SELL_POINTS]].sum(axis=1)
+    signal = result["sell_signal"]
+    assert (result.loc[signal, "sell_score"] == points[signal]).all()
+    assert (result.loc[~signal, "sell_score"] == 0).all()  # Pine: skor yalnızca sinyal barında
+    assert result["sell_score"].max() <= 76
+    assert result["kar_al"].equals(signal & result["sell_score"].between(40, 60))
+    assert result["sat"].equals(signal & result["sell_score"].between(61, 100))
+    assert not (result["kar_al"] & result["sat"]).any()
+
+
+def test_sell_points_on_signal_bar():
+    df = _pullback_df()
+    result = bluetsman.compute_sell(df)
+    bar = result[result["sell_signal"]].iloc[0]
+    # Sabit hacimde hacim koşulu sağlanmaz; iki gün düşüşte 2 barlık momentum negatiftir.
+    assert not bar["volume"] and bar["p_volume"] == 0
+    assert not bar["momentum"]
+    assert bar["p_ema_cross"] == 10 and bar["p_trend_up"] == 10
+    expected = 10 + 10 + (10 if bar["rsi"] else 0) + (6 if bar["macd"] else 0) + (15 if bar["adx"] else 0)
+    assert bar["sell_score"] == expected
+    # Bu senaryoda RSI > 50 ve ADX > 20, MACD histogramı negatif: 10 + 15 + 10 + 10 = 45 -> KAR AL
+    assert bar["sell_score"] == 45 and bar["kar_al"] and not bar["sat"]
+
+
+def test_no_sell_signal_in_downtrend():
+    result = bluetsman.compute_sell(_ohlcv(np.linspace(100, 50, 200)))
+    assert not result["sell_signal"].any()  # Supertrend aşağıyken satış sinyali verilmez

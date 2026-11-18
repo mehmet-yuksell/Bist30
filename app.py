@@ -9,7 +9,7 @@ import streamlit as st
 
 import takip
 from config import BIST100_TICKERS
-from tabs import hisse_detay, ileri_test, karsilastirma, performans, tarama
+from tabs import hisse_detay, karsilastirma, tarama
 from tabs import takip as takip_sekmesi
 from ui import takip_deposu
 from ui.components import footer, header_html
@@ -19,9 +19,7 @@ from ui.viewport import detect_device
 from ui_text import (
     APP_TITLE,
     TAB_HISSE_DETAY,
-    TAB_ILERI,
     TAB_KARSILASTIRMA,
-    TAB_PERFORMANS,
     TAB_TAKIP,
     TAB_TARAMA,
     VADE_LABEL,
@@ -50,19 +48,17 @@ vade = st.segmented_control(
 # Takip listesi tarayıcıdan (localStorage) yüklenir; BIST 100 dışı takip hisseleri, Tarama ile
 # Takip Listem'in paylaştığı tek toplu indirmeye eklenir (ikisi aynı kod listesini kullanır).
 takip_listesi = takip_deposu.senkronize()
-toplu_kodlar = tuple(BIST100_TICKERS) + ("XU100",) + takip.ekstra_kodlar(takip_listesi, BIST100_TICKERS)
+toplu_kodlar = tuple(BIST100_TICKERS) + takip.ekstra_kodlar(takip_listesi, BIST100_TICKERS)
 
 # Sekmeler, okudukları verinin son işlem gününü buraya ekler; başlıkta gösterilir.
 ctx = {"last_dates": [], "vade": vade, "tickers": toplu_kodlar}
 
-# Tarama ilk sekmedir: Bluetsman sinyali veren hisseler açılışta görünür.
-tab1, tab_takip, tab2, tab3, tab4, tab_ileri = st.tabs([
+# Tarama ilk sekmedir: Bluetsman alım/satım sinyali veren hisseler açılışta görünür.
+tab1, tab_takip, tab2, tab3 = st.tabs([
     f":material/grid_view: {TAB_TARAMA}",
     f":material/star: {TAB_TAKIP}",
     f":material/candlestick_chart: {TAB_HISSE_DETAY}",
     f":material/compare_arrows: {TAB_KARSILASTIRMA}",
-    f":material/monitoring: {TAB_PERFORMANS}",
-    f":material/fact_check: {TAB_ILERI}",
 ])
 
 with tab1:
@@ -76,12 +72,6 @@ with tab2:
 
 with tab3:
     karsilastirma.render(device, ctx)
-
-with tab4:
-    performans.render(device, ctx)
-
-with tab_ileri:
-    ileri_test.render(device, ctx)
 
 if ctx["last_dates"]:
     header.html(header_html(fmt_date(max(ctx["last_dates"]))))

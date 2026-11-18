@@ -8,13 +8,17 @@ HEADER_SOURCE = "Yahoo Finance · gecikmeli"
 FOOTER_SOURCE = "Veri kaynağı: Yahoo Finance (gecikmeli, gerçek zamanlı değildir)."
 FOOTER_GITHUB_LABEL = "GitHub'da kaynak kod"
 GITHUB_URL = "https://github.com/mehmet-yuksell/Bist30"
+FOOTER_KVKK = (
+    "KVKK: Uygulama üyelik istemez ve kişisel veri toplamaz. Takip listen yalnızca bu tarayıcıda saklanır; "
+    "hesaplama için oturum boyunca sunucuya iletilir, kalıcı olarak kaydedilmez. Barındırma hizmeti "
+    "(Streamlit Community Cloud) standart teknik erişim kayıtları tutabilir."
+)
+FOOTER_CREDIT = "Mehmet Yüksel · 2026"
 
 DISCLAIMER = (
     "Yatırım tavsiyesi değildir. Veriler Yahoo Finance üzerinden alınır ve "
     "gecikmeli olabilir. Eğitim amaçlı bir projedir."
 )
-
-FOOTER_CREDIT = "Mehmet Yüksel © 2026"
 
 ERROR_NETWORK = (
     "{ticker} için veri alınırken bir ağ hatası oluştu. Lütfen internet "
@@ -100,15 +104,16 @@ EXPLANATIONS = {
         "sabittir; bu hisseye özel olarak optimize edilmemiştir."
     ),
     "bluetsman": (
-        "Bluetsman Alım/Sat v2 (kısa vade, günlük grafik) alım skorunu 0-100 arasında sekiz "
-        "kalemden toplar: EMA 13'ün EMA 34'ü yukarı kesmesinin tazeliği (15), fiyatın EMA 34 "
-        "üzerinde olması (10), Supertrend'in yukarı yönde olması (10), RSI'ın 50-75 arasında "
-        "olması (15), yükselen günde hacmin 20 günlük ortalamaya oranı (15), MACD histogramı "
-        "(15), günlük hareketin ATR'ye oranı (10) ve +DI > -DI iken ADX (10). Alım sinyali için "
-        "kesişim en çok 3 işlem günü önce olmalı, fiyat EMA 34 üzerinde, haftalık kapanış 20 "
-        "haftalık EMA üzerinde ve skor en az 60 olmalı; her kesişime tek sinyal verilir. Stop = "
-        "kapanış - 1,5 ATR, hedef = kapanış + 3 ATR (risk/ödül 2). Hesap temettü düzeltmeli "
-        "günlük kapanışla yapılır."
+        "Bluetsman Alım 1.2 ve Satım 1.2, TradingView'deki iki Pine göstergesinin birebir karşılığıdır; "
+        "günlük vadede günlük, haftalık vadede haftalık mumlarla hesaplanır. Alım sinyali için sekiz "
+        "koşulun hepsi aynı mumda sağlanmalı: EMA 13'ün EMA 34'ü yukarı kesmesi, hacmin 20 mumluk "
+        "ortalamanın 1,05 katını aşması, RSI(14) > 50, momentum (kapanış farkı) > 0, MACD histogramı > 0, "
+        "fiyatın EMA 34 üzerinde olması, Supertrend'in (ATR 10, çarpan 3) yukarı olması ve ADX(14) > 20. "
+        "Alım skoru (0-100) her mumda bu koşulların puanlarından toplanır. Satış sinyali, Supertrend "
+        "(ATR 10, çarpan 2,5) yukarıyken EMA 5'in EMA 13'ü aşağı kestiği mumda oluşur; skor RSI > 50 (10), "
+        "hacim (10), 2 mumluk momentum > 0 (15), MACD histogramı > 0 (6), ADX(7) > 20 (15), kesişim (10) ve "
+        "Supertrend (10) puanlarının toplamıdır. Skor 61 ve üstüyse SAT, 40-60 arasıysa KAR AL gösterilir. "
+        "Fiyatlar TradingView gibi yalnızca bölünmeye göre düzeltilir (temettü düzeltmesi yok)."
     ),
     "usd_view": (
         "Türk Lirası yüksek enflasyon ve kur hareketleri nedeniyle zaman "
@@ -161,7 +166,7 @@ HD_VIEW_WINDOWS = {"1A": 30, "3A": 91, "6A": 182, "1Y": 365, "Tümü": None}
 HD_CURRENCY_LABEL = "Para birimi"
 HD_INDICATORS_LABEL = "Göstergeler"
 HD_INDICATOR_BLUETSMAN = "Bluetsman"
-HD_INDICATOR_OPTIONS = [HD_INDICATOR_BLUETSMAN, "SMA 50", "SMA 200", "EMA 20", "Bollinger"]
+HD_INDICATOR_OPTIONS = [HD_INDICATOR_BLUETSMAN, "EMA 5", "SMA 50", "SMA 200", "EMA 20", "Bollinger"]
 HD_FX_ALIGN_FAILED = "USD/TL kuru bu tarih aralığı için hizalanamadı; TL görünümü kullanılıyor."
 
 HERO_AS_OF = "{date} kapanışı · önceki kapanışa göre"
@@ -210,51 +215,6 @@ BADGE_SMA_ABOVE = "50, 200'ün üzerinde"
 BADGE_SMA_BELOW = "50, 200'ün altında"
 BADGE_INSUFFICIENT = "Yetersiz veri"
 
-# ---------------------------------------------------------------------------
-# Alım sistemi (tarayici_motor: Bluetsman Alım/Sat v2)
-# ---------------------------------------------------------------------------
-
-BL_TITLE = "Bluetsman Alım Sistemi"
-BL_CAPTION = (
-    "Bluetsman Alım/Sat v2, kısa vade (günlük grafik); temettü düzeltmeli kapanışla. "
-    "Bir sinyal taramasıdır, yatırım tavsiyesi değildir."
-)
-BL_STATUS_TODAY = "Bugün alım sinyali (skor {score})"
-BL_STATUS_TODAY_PROVISIONAL = "Bugün ön alım sinyali (skor {score}) · kapanışta kesinleşir"
-BL_STATUS_RECENT = "Son alım sinyali {days} işlem günü önce ({date}, skor {score})"
-BL_STATUS_NONE = "Son {days} işlem gününde alım sinyali yok"
-BL_STATUS_NO_DATA = "Alım sistemi için en az 120 işlem günü veri gerekir; tarih aralığını genişletin."
-BL_GATES = (
-    "Alım sinyali için: taze kesişim {cross} · fiyat > EMA 34 {price} · haftalık trend {weekly} · skor ≥ {min_score} {score}"
-)
-BL_SIGNAL_LEVELS = "Son sinyalin stop seviyesi {stop}, hedefi {target}."
-BL_SCORE_LABEL = "Alım skoru (0-100)"
-BL_TODAY = "Bugün"
-BL_DAYS_AGO = "{days} gün önce"
-BL_ITEM_LABELS = {
-    "kesisim": "Kesişim tazeliği",
-    "fiyat_ema": "Fiyat > EMA 34",
-    "supertrend": "Supertrend yukarı",
-    "rsi": "RSI 50-75",
-    "hacim": "Hacim (yükselen gün)",
-    "macd": "MACD",
-    "momentum": "Momentum / ATR",
-    "adx": "ADX (+DI > -DI)",
-}
-BL_HISTORY_TITLE = "Geçmiş alım sinyalleri (seçili tarih aralığı)"
-BL_HISTORY_CAPTION = (
-    "10 gün sonra: sinyal günü kapanışından 10 işlem günü sonraki kapanışa değişim "
-    "(temettü düzeltmeli). Geçmiş sonuçlar gelecek için garanti değildir."
-)
-BL_HISTORY_EMPTY = "Seçili tarih aralığında hiç alım sinyali oluşmadı."
-BL_COL_DATE = "Tarih"
-BL_COL_SCORE = "Skor"
-BL_COL_CLOSE = "Kapanış"
-BL_COL_STOP = "Stop"
-BL_COL_TARGET = "Hedef"
-BL_COL_FORWARD = "10 gün sonra"
-BL_HISTORY_SUMMARY = "{count} sinyal · 10 gün sonra yükselen: {up}/{done} · ortalama {avg}"
-
 # Güncellik ve piyasa durumu
 LIVE_LAST_DATA = "Son veri"
 LIVE_UPDATED = "Son güncelleme"
@@ -298,39 +258,25 @@ BT_TRADES_TITLE = "İşlem Noktaları"
 BT_TRADES_PICK = "Hangi stratejinin işlem noktalarını görmek istersiniz?"
 BT_ENTRY = "Giriş"
 BT_EXIT = "Çıkış"
-BT_EQUITY_AXIS = "Başlangıç = 100"
 
 # ---------------------------------------------------------------------------
 # BIST 100 Tarama
 # ---------------------------------------------------------------------------
 
-TS_TITLE = "Bugünün Alım Sinyalleri"
-TS_CAPTION = "Son işlem gününde alım sinyali veren BIST 100 hisseleri, alım skoruna göre sıralı."
-TS_PROVISIONAL_TITLE = "Ön sinyaller (seans sürüyor)"
 TS_PROVISIONAL_BADGE = "Ön sinyal"
-TS_NONE = "Bugün alım sinyali yok"
-TS_RECENT_TITLE = "Son 5 işlem günündeki sinyaller"
-TS_RECENT_NONE = "Son 5 işlem gününde de alım sinyali oluşmadı."
 TS_SIGNAL_PRICE = "Sinyal fiyatı"
 TS_SINCE = "sinyalden bu yana"
-TS_STOP = "Stop"
-TS_TARGET = "Hedef"
 TS_RSI = "RSI"
 TS_VOLUME = "Hacim"
 TS_VOLUME_VALUE = "{ratio}×"
 
 TR_RISING = "Yükselen"
 TR_FALLING = "Düşen"
-TR_SIGNAL_TODAY = "Bugün alım sinyali"
 TR_SIGNAL_TODAY_SUB = "ön sinyal"
-TR_SIGNAL_RECENT = "Son {days} günde sinyal"
 TR_AS_OF = "{date} itibarıyla · günlük değişim önceki kapanışa göre"
 TR_LIST_TITLE = "BIST 100 Hisseleri"
-TR_LIST_CAPTION = "Alım skoru ve sinyal Bluetsman Alım/Sat v2'ye göredir; kalem kalem kırılımı Hisse Detay sekmesinde."
-TR_LIST_META = "Skor {score} · RSI {rsi}"
 TR_FILTER_LABEL = "Göster"
 TR_FILTER_ALL = "Tümü"
-TR_FILTER_SIGNAL = "Son {days} günde sinyal verenler"
 TR_SEARCH_LABEL = "Hisse kodu veya şirket adı ara"
 TR_SEARCH_PLACEHOLDER = "Örn. GARAN veya Koç"
 TR_SORT_LABEL = "Sırala"
@@ -342,14 +288,11 @@ TR_SORT_OPTIONS = {
 }
 TR_MISSING = "{count} hisse için veri alınamadı ve listeden çıkarıldı."
 TR_NO_RESULTS = "Filtrelere uyan hisse yok. Arama metnini değiştirin."
-TR_NO_SIGNALS = "Son {days} işlem gününde hiçbir BIST 100 hissesinde alım sinyali oluşmadı."
 TR_NO_DATA = "Hiçbir hisse için veri alınamadı."
 TR_COL_TICKER = "Hisse"
 TR_COL_COMPANY = "Şirket"
 TR_COL_PRICE = "Son Fiyat"
 TR_COL_CHANGE = "Günlük Değişim"
-TR_COL_SCORE = "Alım Skoru"
-TR_COL_SIGNAL = "Son Sinyal"
 TR_COL_RSI = "RSI"
 TR_COL_VOLUME = "Hacim x"
 TR_STRIP_FLAT = "{count} değişmeyen"
@@ -374,175 +317,7 @@ DATE_BUTTON_LABEL = "Tarih"
 BT_PRICE_LEGEND = "Fiyat (düzeltilmiş, TL)"
 
 # ---------------------------------------------------------------------------
-# Sistem Performansı (portföy testi; tools/sistem_raporu.py üretir)
-# ---------------------------------------------------------------------------
-
-TAB_PERFORMANS = "Sistem Performansı"
-SP_TITLE = "Sistem Performansı"
-SP_CAPTION = (
-    "Sinyallerin geçmiş veriyle portföy simülasyonu: 100.000 TL, işlem başına %1 risk, en fazla "
-    "6 pozisyon. Eğitim amaçlıdır, yatırım tavsiyesi değildir; geçmiş performans gelecek için garanti değildir."
-)
-SP_PERIOD_LABEL = "Dönem"
-SP_PERIODS = {"TEST": "TEST (2025 ve sonrası)", "GELİŞTİRME": "GELİŞTİRME (2021-2024)"}
-SP_EQUITY_TITLE = "Sermaye eğrisi (TL)"
-SP_DRAWDOWN_TITLE = "Tepeden düşüş (%)"
-SP_METRICS_TITLE = "Metrikler"
-SP_COL_PORTFOLIO = "Portföy"
-SP_COL_TRADES = "İşlem"
-SP_COL_TOTAL = "Toplam getiri"
-SP_COL_ANNUAL = "Yıllık getiri"
-SP_COL_VOL = "Yıllık oynaklık"
-SP_COL_SHARPE = "Sharpe"
-SP_COL_SORTINO = "Sortino"
-SP_COL_MAXDD = "Maks. düşüş"
-SP_COL_DD_DAYS = "Düşüş süresi (gün)"
-SP_COL_RATIO = "Getiri / maks. düşüş"
-SP_AS_OF = "Veri sonu {data} · hesaplama {computed} · ayrıntılar ve yöntem: docs/sistem_raporu.md"
-SP_MISSING = (
-    "Performans verisi bulunamadı. Proje kökünde `python tools/sistem_raporu.py` çalıştırıldığında oluşur."
-)
-SP_NOTES = [
-    "TEST dönemi, kuralların ve eşiklerin ayarlanmasında hiç kullanılmadı; asıl sonuç odur.",
-    "Hisse evreni bugünkü BIST 100 listesidir (hayatta kalma yanlılığı): sonuçlar olduğundan iyi görünebilir.",
-    "Sharpe ve Sortino risksiz getiri 0 ile hesaplandı; TL faizi yüksek olduğu için gerçekte daha düşüktür.",
-    "XU100 fiyat endeksidir (temettü içermez); sistemler ve eşit ağırlıklı al-tut temettü düzeltmelidir.",
-]
-SP_NOTES_TITLE = "Okurken dikkat"
-EXPLANATIONS["portfolio"] = (
-    "Getiri / maksimum düşüş oranı, yıllık getirinin en büyük tepeden düşüşe bölümüdür; aynı getiriyi daha "
-    "küçük düşüşle sağlayan portföy daha yüksek puan alır. Sharpe, getirinin oynaklığa oranıdır; Sortino "
-    "yalnızca aşağı yönlü oynaklığı hesaba katar. Düşüş süresi, sermayenin bir önceki tepesinin altında "
-    "kaldığı en uzun işlem günü sayısıdır."
-)
-
-# ---------------------------------------------------------------------------
-# Sinyal kalitesi notu (kalite.py, data/sinyal_kalitesi.json)
-# ---------------------------------------------------------------------------
-
-KQ_GRADE = "Not {grade}"
-# Yüzdeye ek getirilmez (%36'sı / %45'i sayının okunuşuna göre değişir); cümle eksiz kurulur.
-KQ_STATS = "Bu kalitedeki sinyaller geçmişte: hedefe ulaşan %{hit}{days}, stop olan %{stop} ({n} sinyal, 2021'den bu yana)."
-KQ_STATS_DAYS = " (medyan {days} gün)"
-KQ_CAPTION = (
-    "Not (A/B/C) skor aralığının 2021-2024 sonuçlarına göre verildi ve 2025 sonrasında sıralaması doğrulandı. "
-    "En iyi not bile 2025 sonrasında ortalama başabaş; ayrıntı Sistem Performansı sekmesinde ve docs/sistem_raporu.md'de."
-)
-TR_COL_GRADE = "Not"
-
-# ---------------------------------------------------------------------------
-# Aşama 5: vade seçimi, satış uyarıları, fırsat düşüşleri, düşen bıçak
-# ---------------------------------------------------------------------------
-
-VADE_LABEL = "Vade"
-VADE_OPTIONS = {"kisa": "Kısa vade (günlük)", "orta": "Orta vade (haftalık)"}
-VADE_WEEK_NOTE = "Bu haftanın mumu cuma kapanışına kadar kesinleşmez; bu haftanın sinyalleri ön sinyaldir."
-VADE_BIRIM = {"kisa": "gün", "orta": "hafta"}
-VADE_ONCE = {"kisa": "{days} gün önce", "orta": "{days} hafta önce"}
-VADE_BUGUN = {"kisa": "Bugün", "orta": "Bu hafta"}
-
-TS_CAPTION_ORTA = (
-    "Son haftalık barda alım sinyali veren BIST 100 hisseleri (orta vadenin kabul edilmiş filtreleri: "
-    "XU100 > EMA 100, fiyat > EMA 300, sinyal günü < %8,5), alım skoruna göre sıralı."
-)
-TS_NONE_ORTA = "Bu hafta alım sinyali yok"
-TS_RECENT_TITLE_ORTA = "Son 5 haftadaki sinyaller"
-TS_RECENT_NONE_ORTA = "Son 5 haftada da alım sinyali oluşmadı."
-
-SL_TITLE = "Bugünün Satış Uyarıları"
-SL_CAPTION = (
-    "Son barda SAT, KAR AL ya da ÇIK sinyali veren hisseler (bir hissede birden fazlaysa öncelik "
-    "SAT > KAR AL > ÇIK). Elinde olmayan hisse için yalnızca bilgi amaçlıdır."
-)
-SL_NONE = "Bugün satış uyarısı yok"
-SL_NONE_ORTA = "Bu hafta satış uyarısı yok"
-SL_STATS = (
-    "Geçmişte bu uyarılardan sonra fiyatın önce aşağı hedefe indiği %{hit}, önce yukarı stopa çıktığı %{stop} "
-    "({n} uyarı, 2021'den bu yana)."
-)
-SL_VERDICT_GOOD = "{ad}: geçmiş testte iki dönemde de rastgele bir günden daha iyi uyardı."
-SL_VERDICT_BAD = "{ad}: geçmiş testte 2025 sonrasında rastgele bir günden daha iyi uyarmadı."
-SL_SCORE = "Satış skoru"
-
-FR_TITLE = "⚡ Fırsat Düşüşleri"
-FR_CAPTION = (
-    "Sağlam hissede ani sert düşüşten sonra dönüş günü (günlük; vade seçiminden bağımsız). Giriş yarın "
-    "açılışta; stop dibin 0,5 ATR altı, hedef 20 günlük EMA ya da 2R (hangisi önce)."
-)
-FR_NONE = "Bugün fırsat sinyali yok"
-FR_WAITING_TITLE = "Dönüş bekleyenler (sert düşüş var, dönüş günü henüz gelmedi)"
-FR_WAITING_ROW = "5 günde {drop} · RSI(2) {rsi}"
-FR_WARN_STOCK = "Hisseye özel düşüş, KAP haberlerini kontrol et"
-FR_WARN_MARKET = "Piyasa geneli satış, pozisyonu küçük tut"
-FR_EMA_TARGET = "EMA 20 hedefi"
-FR_2R_TARGET = "2R hedefi (tahmini)"
-FR_RSI2 = "RSI(2)"
-FR_HONEST = (
-    "Geçmiş testte FIRSAT sinyalleri 2025 sonrasında işlem başına ortalama {r} R getirdi (aynı kurallarla "
-    "rastgele gün: {rr} R). Hedefe ulaşma oranı yüksek (%{hit}) ama kazançlar küçük, kayıplar büyük; "
-    "ayrıntı docs/sistem_raporu.md."
-)
-
-BK_TITLE = "⚠️ Düşen Bıçak Riski"
-BK_CAPTION = (
-    "Sert düşüş bölümündeki hisselerden düşen bıçak kriterlerinden en az biri görülenler. Bu hisselere "
-    "FIRSAT sinyali verilmez."
-)
-BK_NONE = "Düşen bıçak riski listesinde hisse yok"
-BK_HONEST = (
-    "Geçmiş testte bu eleme kötü sonuçlanan düşüşleri ayırt etmedi: elenen dönüşler ortalamada daha iyi "
-    "toparlandı. Liste uyarı olarak gösterilir, kesin bir sinyal değildir."
-)
-
-TR_COL_SCORE_K = "Kısa skor"
-TR_COL_SIGNAL_K = "Kısa sinyal"
-TR_COL_SCORE_O = "Orta skor"
-TR_COL_SIGNAL_O = "Orta sinyal"
-TR_LIST_META_VADE = "Kısa {k} · Orta {o} · RSI {rsi}"
-TR_SIGNAL_RECENT_ORTA = "Son {days} haftada sinyal"
-TR_FILTER_SIGNAL_ORTA = "Son {days} haftada sinyal verenler"
-
-HD_WEEKLY_INDICATORS = "Orta vadede mumlar ve göstergeler haftalıktır (SMA 50 = 50 hafta)."
-BL_SELL_PRESSURE = "Satış baskısı {skor}/100 (KAR AL eşiği {kar}, SAT eşiği {sat})"
-BL_LAST_SELL = "son satış sinyali: {ad}, {once}"
-BL_NO_SELL = "son {n} barda satış sinyali yok"
-CHART_SELL = "Satış sinyali"
-CHART_FIRSAT = "Fırsat sinyali"
-HS_TITLE = "Bu hissenin sinyal geçmişi"
-HS_OWN = (
-    "Seçili tarih aralığında bu hissede {n} tamamlanmış alım sinyali: hedefe ulaşan %{hit}, stop olan %{stop}, "
-    "ortalama {r} R."
-)
-HS_GENERAL = (
-    "Bu hissede seçili aralıkta {n} tamamlanmış sinyal var (15'ten az). Bu yüzden BIST 100 genelinin "
-    "2021'den bu yana istatistiği gösteriliyor: {m} sinyal, hedefe ulaşan %{hit}, stop olan %{stop}, "
-    "ortalama {r} R."
-)
-HS_HIST_TITLE = {"kisa": "Hedefe kaç günde ulaştı", "orta": "Hedefe kaç haftada ulaştı"}
-HS_HIST_AXIS = "Sinyalden sonra {birim}"
-HS_NO_TARGETS = "Hedefe ulaşan sinyal yok."
-KR_WEEKLY_NOTE = "Orta vadede getiri ve korelasyon haftalık kapanışlarla hesaplanır."
-SP_VADE_NOTE = "Portföy testi kısa vade (günlük) alım sinyalleri ve FIRSAT ile yapıldı; vade seçiminden etkilenmez."
-BL_STATUS_RECENT_ORTA = "Son alım sinyali {days} hafta önce ({date} haftası, skor {score})"
-BL_STATUS_NONE_ORTA = "Son {days} haftada alım sinyali yok"
-BL_STATUS_TODAY_ORTA = "Bu hafta alım sinyali (skor {score}) · cuma kapanışında kesinleşir"
-BL_GATES_ORTA = (
-    "Alım sinyali için: taze kesişim {cross} · fiyat > EMA 30 {price} · trend (fiyat > EMA 40) {trend} · "
-    "skor ≥ {min_score} {score} · filtreler (XU100 > EMA 100 {f1}, fiyat > EMA 300 {f5}, sinyal günü < %8,5 {f8})"
-)
-BL_COL_FORWARD_ORTA = "10 hafta sonra"
-BL_HISTORY_CAPTION_ORTA = (
-    "10 hafta sonra: sinyal haftası kapanışından 10 hafta sonraki kapanışa değişim (temettü düzeltmeli). "
-    "Geçmiş sonuçlar gelecek için garanti değildir."
-)
-HD_NO_INDEX = "XU100 verisi alınamadı; orta vadenin piyasa filtresi hesaplanamadığı için sinyaller gösterilemiyor."
-BL_CAPTION_ORTA = (
-    "Bluetsman Alım/Sat v2, orta vade (haftalık grafik); temettü düzeltmeli kapanışla, orta vadenin kabul edilmiş "
-    "alım filtreleriyle. Bir sinyal taramasıdır, yatırım tavsiyesi değildir."
-)
-
-# ---------------------------------------------------------------------------
-# Takip Listem (Aşama 6)
+# Takip Listem
 # ---------------------------------------------------------------------------
 
 TAB_TAKIP = "Takip Listem"
@@ -564,10 +339,6 @@ TK_NOT_FOUND = "{kod} için Yahoo Finance'te veri bulunamadı; listeye eklenmedi
 TK_ADDED = "{kod} listeye eklendi."
 TK_EMPTY = "Takip listen boş. Yukarıdan hisse ekleyebilirsin."
 TK_SUMMARY_TITLE = "Karar özeti"
-TK_SUMMARY_CAPTION = (
-    "Kurallara dayalı hatırlatmadır, tavsiye değildir. Geçmiş testte alım sinyalleri 2025 sonrasında rastgele "
-    "girişten iyi değildi; ayrıntı Sistem Performansı sekmesinde."
-)
 TK_SUMMARY_NONE = "Şu an karar özetine giren bir durum yok."
 TK_TABLE_TITLE = "Liste"
 TK_NO_DATA = "veri yok"
@@ -577,14 +348,8 @@ TK_COL_PRICE = "Fiyat"
 TK_COL_CHANGE = "Değişim"
 TK_COL_PL_PCT = "K/Z %"
 TK_COL_PL_TL = "K/Z TL"
-TK_COL_SCORE = "{v} skor"
-TK_COL_GRADE = "{v} not"
-TK_COL_PRESSURE = "{v} satış baskısı"
 TK_COL_SIGNAL = "{v} son sinyal"
-TK_COL_STOP = "{v} stop"
-TK_COL_TARGET = "{v} hedef"
 TK_COL_NOTE = "Not"
-TK_VADE_SHORT = {"kisa": "Kısa", "orta": "Orta"}
 TK_SIGNAL_BUY = "Alım"
 TK_EDIT_TITLE = "Listeyi düzenle"
 TK_EDIT_DELETE = "Sil"
@@ -596,61 +361,126 @@ TK_UPLOAD = "Listeyi yükle (JSON)"
 TK_UPLOAD_APPLY = "Yüklenen listeyi kullan (mevcut listenin yerine geçer)"
 TK_UPLOAD_OK = "{n} hisselik liste yüklendi."
 TK_UPLOAD_BAD = "Liste yüklenemedi: {hata}"
-TK_LEVEL_NOTE = (
-    "Stop/hedef: son 10 bardaki alım sinyalinin seviyeleri; sinyal yoksa bugünkü bara göre (kapanış ∓ ATR katları)."
-)
-
-# Mehmet'in kararıyla (raporu okuduktan sonra) alım bölümlerinin üstünde gösterilir
-ALIM_UYARISI = (
-    "Bu sinyaller 2025'ten bu yana test döneminde maliyet sonrası pozitif getiri vermedi "
-    "(ayrıntı: Sistem Performansı sekmesi). Karar verirken tek başına kullanma."
-)
-SATIS_IYI = "Satış uyarılarından {adlar} ise kısa vadede iki dönemde de rastgele bir günden daha iyi uyardı."
-IKI_SISTEM = (
-    "Hem orijinal Bluetsman (8 koşul) hem yeni sistem, 2025 sonrası test döneminde aynı kurallarla rastgele "
-    "girişten kötü sonuç verdi; ikisi arasındaki fark istatistiksel olarak anlamlı değil."
-)
-KARSILASTIRMA_LINK = "Orijinal ve yeni sistemin karşılaştırma raporu ↗"
-KARSILASTIRMA_URL = GITHUB_URL + "/blob/main/docs/bluetsman_karsilastirma.md"
 
 # ---------------------------------------------------------------------------
-# İleri Test (Sinyal Günlüğü)
+# Bluetsman Alım 1.2 ve Satım 1.2 (bluetsman.py, TradingView Pine kodlarının karşılığı)
 # ---------------------------------------------------------------------------
 
-TAB_ILERI = "İleri Test"
-IT_TITLE = "İleri Test"
-IT_CAPTION = (
-    "Sinyal Günlüğü'ne (her iş günü 18:45'te otomatik) kaydedilen sinyallerin gerçek zamanlı sonucu, Aşama 1 "
-    "kurallarıyla: ertesi gün açılıştan giriş, stop/hedef/zaman aşımı, %0,2 maliyet. Geçmiş testlerden farklı "
-    "olarak kayıt anında gelecek bilinmez. Eğitim amaçlıdır, yatırım tavsiyesi değildir."
+VADE_LABEL = "Vade"
+VADE_OPTIONS = {"kisa": "Günlük", "orta": "Haftalık"}
+VADE_SHORT = {"kisa": "Günlük", "orta": "Haftalık"}
+VADE_WEEK_NOTE = "Bu haftanın mumu cuma kapanışına kadar kesinleşmez; bu haftanın sinyalleri ön sinyaldir."
+VADE_ONCE = {"kisa": "{days} gün önce", "orta": "{days} hafta önce"}
+VADE_BUGUN = {"kisa": "Bugün", "orta": "Bu hafta"}
+
+AL_TITLE = {"kisa": "Bugünün Alım Sinyalleri", "orta": "Bu Haftanın Alım Sinyalleri"}
+AL_CAPTION = (
+    "Bluetsman Alım 1.2: sekiz koşulun hepsi son mumda sağlandı (EMA 13 EMA 34'ü yukarı kesti, hacim, RSI, "
+    "momentum, MACD, fiyat > EMA 34, Supertrend, ADX). Skora göre sıralı."
 )
-IT_EMPTY = "Sinyal Günlüğü henüz boş."
-IT_SINCE = "Günlük {ilk} tarihinde başladı, son kayıt {son}. Toplam {n} sinyal, {m} tanesi sonuçlandı."
-IT_NOT_ENOUGH_TITLE = "Henüz yeterli veri yok"
-IT_NOT_ENOUGH = (
-    "Anlamlı bir ölçüm için en az {min} sonuçlanmış sinyal gerekir; şu an {m}. Aşağıda günlükteki sinyaller ve "
-    "şimdiye kadarki durumları var."
+AL_NONE = {"kisa": "Bugün alım sinyali yok", "orta": "Bu hafta alım sinyali yok"}
+
+ST_TITLE = {"kisa": "Bugünün Satış Sinyalleri", "orta": "Bu Haftanın Satış Sinyalleri"}
+ST_CAPTION = (
+    "Bluetsman Satım 1.2: Supertrend yukarıyken EMA 5 EMA 13'ü aşağı kesti. Skor 61 ve üstü SAT, "
+    "40-60 arası KAR AL."
 )
-IT_SUMMARY_TITLE = "Sonuçlar (vade ve türe göre)"
-IT_LOG_TITLE = "Günlükteki sinyaller"
-IT_COL_DATE = "Tarih"
-IT_COL_HORIZON = "Vade"
-IT_COL_TYPE = "Tür"
-IT_COL_CODE = "Hisse"
-IT_COL_SCORE = "Skor"
-IT_COL_GRADE = "Not"
-IT_COL_REF = "Giriş ref."
-IT_COL_STOP = "Stop"
-IT_COL_TARGET = "Hedef"
-IT_COL_RESULT = "Sonuç"
-IT_COL_DAYS = "Süre"
-IT_COL_R = "R"
-IT_COL_COUNT = "Sonuçlanan"
-IT_COL_OPEN = "Açık"
-IT_COL_HIT = "Hedef %"
-IT_COL_STOPPCT = "Stop %"
-IT_COL_EXP = "Beklenen getiri (R)"
-IT_COL_MEDIAN = "Hedefe medyan süre"
-IT_TYPES = {"AL": "Alım", "SAT": "SAT", "KAR_AL": "KAR AL", "CIK": "ÇIK", "FIRSAT": "FIRSAT"}
-IT_RESULTS = {"hedef": "Hedef", "stop": "Stop", "zaman": "Zaman aşımı", "acik": "Açık",
-              "gecersiz": "Geçersiz (açılış seviyelerin ötesinde)"}
+ST_NONE = {"kisa": "Bugün satış sinyali yok", "orta": "Bu hafta satış sinyali yok"}
+ST_RECENT_TITLE = {"kisa": "Son 5 günün satış sinyalleri", "orta": "Son 5 haftanın satış sinyalleri"}
+ST_RECENT_META = "{when} · skor {score} · sinyal fiyatı {price}"
+
+KF_TITLE = "Kısa Vade Fırsatları"
+KF_CAPTION = {
+    "kisa": "Son 5 günde Alım 1.2 sinyali gelen ve o günden bu yana satış sinyali gelmeyen hisseler.",
+    "orta": "Son 5 haftada Alım 1.2 sinyali gelen ve o haftadan bu yana satış sinyali gelmeyen hisseler.",
+}
+KF_NONE = {
+    "kisa": "Son 5 günde satış sinyali gelmemiş alım sinyali yok.",
+    "orta": "Son 5 haftada satış sinyali gelmemiş alım sinyali yok.",
+}
+
+SIGNAL_ADX = "ADX"
+SIGNAL_SELL_SCORE = "Satış skoru"
+SIGNAL_SELL_SCORE_VALUE = "{score} / 76"
+
+TR_COL_SCORE = "{v} skor"
+TR_COL_BUY = "{v} alım"
+TR_COL_SELL = "{v} satış"
+TR_SIGNAL_TODAY = {"kisa": "Bugün alım sinyali", "orta": "Bu hafta alım sinyali"}
+TR_SELL_TODAY = {"kisa": "Bugün satış sinyali", "orta": "Bu hafta satış sinyali"}
+TR_FILTER_SIGNAL = {"kisa": "Son {days} günde sinyal verenler", "orta": "Son {days} haftada sinyal verenler"}
+TR_NO_SIGNALS = {
+    "kisa": "Son {days} işlem gününde hiçbir BIST 100 hissesinde alım ya da satış sinyali oluşmadı.",
+    "orta": "Son {days} haftada hiçbir BIST 100 hissesinde alım ya da satış sinyali oluşmadı.",
+}
+TR_LIST_CAPTION = (
+    "Skor: Alım 1.2'nin 0-100 skoru (her mumda hesaplanır). Alım ve satış sütunları son 10 mumdaki en yeni "
+    "sinyaldir. Koşul koşul ayrıntı Hisse Detay sekmesinde."
+)
+TR_LIST_META_VADE = "Günlük {k} · Haftalık {o} · RSI {rsi}"
+
+BL_TITLE = "Bluetsman Alım 1.2 ve Satım 1.2"
+BL_CAPTION = {
+    "kisa": "TradingView'deki Pine göstergelerinin birebir karşılığı; günlük mumlar, bölünmeye göre düzeltilmiş fiyat.",
+    "orta": "TradingView'deki Pine göstergelerinin birebir karşılığı; haftalık mumlar, bölünmeye göre düzeltilmiş fiyat.",
+}
+BL_STATUS_TODAY = {"kisa": "Bugün alım sinyali (skor {score})", "orta": "Bu hafta alım sinyali (skor {score})"}
+BL_STATUS_TODAY_PROVISIONAL = "Ön alım sinyali (skor {score}) · mum kapanınca kesinleşir"
+BL_STATUS_RECENT = "Son alım sinyali {when} ({date}, skor {score})"
+BL_STATUS_NONE = {"kisa": "Son {days} işlem gününde alım sinyali yok", "orta": "Son {days} haftada alım sinyali yok"}
+BL_STATUS_NO_DATA = "Göstergeler için yeterli veri yok (en az 60 gün ya da 40 hafta); tarih aralığını genişletin."
+BL_MET = "Sinyal için sekiz koşulun hepsi gerekir: bugün {met}/{total} sağlanıyor."
+BL_SCORE_LABEL = "Alım skoru (0-100)"
+BL_ITEM_LABELS = {
+    "ema_cross": "EMA 13 ↑ EMA 34",
+    "volume": "Hacim > ort. ×1,05",
+    "rsi": "RSI > 50",
+    "momentum": "Momentum > 0",
+    "macd": "MACD histogram > 0",
+    "price_above": "Fiyat > EMA 34",
+    "supertrend": "Supertrend yukarı",
+    "adx": "ADX > 20",
+}
+ST_CARD_TITLE = "Satım 1.2"
+ST_STATUS_TODAY = {"kisa": "Bugün {ad} sinyali (skor {score})", "orta": "Bu hafta {ad} sinyali (skor {score})"}
+ST_STATUS_RECENT = "Son satış sinyali: {ad}, {when} ({date}, skor {score})"
+ST_STATUS_NONE = {"kisa": "Son {days} işlem gününde satış sinyali yok", "orta": "Son {days} haftada satış sinyali yok"}
+ST_RULE = (
+    "Satış sinyali: Supertrend yukarıyken EMA 5 EMA 13'ü aşağı keser. Puanlar bugünkü koşullardır; skor "
+    "61-76 SAT, 40-60 KAR AL."
+)
+ST_SCORE_LABEL = "Satış koşulları (en fazla 76)"
+ST_ITEM_LABELS = {
+    "rsi": "RSI > 50",
+    "volume": "Hacim > ort. ×1,05",
+    "momentum": "Momentum (2 mum) > 0",
+    "macd": "MACD histogram > 0",
+    "adx": "ADX (7) > 20",
+    "ema_cross": "EMA 5 ↓ EMA 13",
+    "trend_up": "Supertrend yukarı",
+}
+BL_HISTORY_TITLE = "Geçmiş sinyaller (seçili tarih aralığı)"
+BL_HISTORY_SUMMARY = "{alim} alım · {kar_al} KAR AL · {sat} SAT sinyali"
+BL_HISTORY_EMPTY = "Seçili tarih aralığında hiç sinyal oluşmadı."
+BL_HISTORY_CAPTION = {
+    "kisa": "{n} gün sonra: sinyal günü kapanışından {n} işlem günü sonraki kapanışa değişim.",
+    "orta": "{n} hafta sonra: sinyal haftası kapanışından {n} hafta sonraki kapanışa değişim.",
+}
+BL_COL_DATE = "Tarih"
+BL_COL_KIND = "Sinyal"
+BL_COL_SCORE = "Skor"
+BL_COL_CLOSE = "Kapanış"
+BL_COL_FORWARD = {"kisa": "{n} gün sonra", "orta": "{n} hafta sonra"}
+BL_KIND_LABELS = {"alim": "Alım", "kar_al": "KAR AL", "sat": "SAT"}
+
+CHART_SERIES_BL_SELL = "EMA 5"
+CHART_KAR_AL = "KAR AL"
+CHART_SAT = "SAT"
+HD_INDICATOR_EMA5 = "EMA 5"
+HD_WEEKLY_INDICATORS = "Haftalık vadede mumlar ve göstergeler haftalıktır (SMA 50 = 50 hafta)."
+KR_WEEKLY_NOTE = "Haftalık vadede getiri ve korelasyon haftalık kapanışlarla hesaplanır."
+
+TK_SUMMARY_CAPTION = (
+    "Yalnızca Alım 1.2 ve Satım 1.2 sinyallerine dayalı hatırlatmadır (son 5 mum, iki vade)."
+)
+TK_COL_SCORE = "{v} skor"

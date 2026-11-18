@@ -435,6 +435,7 @@ footer {{
 .ui-footer strong {{ color: var(--text-2); font-weight: 600; }}
 .ui-footer a {{ color: var(--accent-text); text-decoration: none; display: inline-flex; align-items: center; min-height: 32px; }}
 .ui-footer a:hover {{ text-decoration: underline; }}
+.ui-footer .ui-credit {{ margin-top: var(--space-2); color: var(--text-3); letter-spacing: 0.02em; }}
 
 /* ---------- Tablet ve üstü ---------- */
 @media (min-width: 768px) {{

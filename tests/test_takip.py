@@ -47,64 +47,55 @@ def test_extra_codes_outside_bist100():
     assert tk.ekstra_kodlar(liste, {"THYAO", "GARAN"}) == ("AAAA", "ZZZZ")
 
 
-def _vade(al=None, sat=None, stop=90.0, hedef=120.0, yakin=False, artiyor=False):
-    return {"skor": 65.0, "satis_baskisi": 30.0, "al": al, "sat": sat, "stop": stop, "hedef": hedef,
-            "seviye_sinyalden": al is not None, "skor_artiyor": artiyor, "ema_yakin": yakin}
+def _vade(al=None, acik_al=None, sat=None, yakin=False, artiyor=False):
+    return {"skor": 65.0, "al": al, "acik_al": acik_al, "sat": sat, "skor_artiyor": artiyor, "ema_yakin": yakin}
 
 
-def _satir(kod, fiyat=100.0, alis=None, kisa=None, orta=None, firsat=None):
+def _satir(kod, fiyat=100.0, alis=None, kisa=None, orta=None):
     return {"kod": kod, "alis": alis, "adet": None, "not": "", "veri": True, "fiyat": fiyat,
-            "kisa": kisa, "orta": orta, "firsat": firsat}
-
-
-def _not(skor, vade):
-    """Gerçek kısa vade notları gibi: 70-79 A, 60-69 B, 80+ C; orta vadede not yok."""
-    if vade != "kisa":
-        return None
-    return "C" if skor >= 80 else ("A" if skor >= 70 else "B")
+            "kisa": kisa, "orta": orta}
 
 
 def test_decision_summary_rules():
+    alim = {"once": 1, "skor": 75.0}
     satirlar = [
-        # elimde, ÇIK sinyali 2 bar önce ve stop kırık
-        _satir("H1", fiyat=85, alis=100, kisa=_vade(al={"once": 7, "skor": 72, "stop": 90, "hedef": 120},
-                                                     sat={"tur": "CIK", "ad": "ÇIK", "once": 2})),
-        # elimde, hedefe ulaştı
-        _satir("H2", fiyat=125, alis=100, kisa=_vade(al={"once": 8, "skor": 65, "stop": 90, "hedef": 120})),
-        # elimde değil, not A alım sinyali 1 bar önce
-        _satir("N1", kisa=_vade(al={"once": 1, "skor": 75, "stop": 90, "hedef": 120})),
-        # elimde değil, not C alım sinyali: alım grubuna girmez
-        _satir("N2", kisa=_vade(al={"once": 1, "skor": 85, "stop": 90, "hedef": 120})),
-        # orta vade sinyali: not doğrulanmadığı için girmez
-        _satir("N3", orta=_vade(al={"once": 0, "skor": 75, "stop": 90, "hedef": 120})),
-        # FIRSAT ve bıçak, takipte kal
-        _satir("F1", firsat={"firsat": True, "bicak": False}, kisa=_vade(yakin=True, artiyor=True)),
-        _satir("K1", firsat={"firsat": False, "bicak": True}),
+        # elimde, SAT sinyali 2 bar önce (günlük)
+        _satir("H1", alis=100, kisa=_vade(sat={"tur": "sat", "ad": "SAT", "once": 2, "skor": 66.0})),
+        # elimde, KAR AL haftalık vadede
+        _satir("H2", alis=100, orta=_vade(sat={"tur": "kar_al", "ad": "KAR AL", "once": 0, "skor": 45.0})),
+        # elimde değil, ardından satış gelmemiş alım sinyali
+        _satir("N1", kisa=_vade(al=alim, acik_al=alim)),
+        # elimde değil, alım sinyalinden sonra satış geldi: girmez
+        _satir("N2", kisa=_vade(al=alim, sat={"tur": "kar_al", "ad": "KAR AL", "once": 0, "skor": 45.0})),
+        # elimde: alım sinyali alım grubuna girmez
+        _satir("H3", alis=100, kisa=_vade(al=alim, acik_al=alim)),
+        # takipte kal
+        _satir("I1", kisa=_vade(yakin=True, artiyor=True)),
     ]
-    g = tk.karar_ozeti(satirlar, _not)
-    assert g["sat"] == [("H1", "ÇIK sinyali (kısa vade)"), ("H1", "stop kırıldı (kısa vade)")]
-    assert g["kar"] == [("H2", "hedefe ulaştı (kısa vade)")]
-    assert [k for k, _ in g["al"]] == ["N1", "F1"]
-    assert [k for k, _ in g["izle"]] == ["F1"]
-    assert [k for k, _ in g["dikkat"]] == ["K1"]
+    g = tk.karar_ozeti(satirlar)
+    assert g["sat"] == [("H1", "SAT sinyali, skor 66 (günlük)")]
+    assert g["kar"] == [("H2", "KAR AL sinyali, skor 45 (haftalık)")]
+    assert g["al"] == [("N1", "alım sinyali, skor 75 (günlük)")]
+    assert [k for k, _ in g["izle"]] == ["I1"]
+    assert set(g) == {"sat", "kar", "al", "izle"}
 
 
 def test_old_signals_do_not_trigger():
-    eski = _satir("H3", alis=100, kisa=_vade(sat={"tur": "SAT", "ad": "SAT", "once": 6}))
-    assert tk.karar_ozeti([eski], _not)["sat"] == []
+    eski = _satir("H3", alis=100, kisa=_vade(sat={"tur": "sat", "ad": "SAT", "once": 6, "skor": 70.0}))
+    assert tk.karar_ozeti([eski])["sat"] == []
 
 
 def test_row_without_data():
-    s = tk.satir(tk.yeni_kayit("YOKK"), None, None)
+    s = tk.satir(tk.yeni_kayit("YOKK"), None)
     assert s["veri"] is False
-    assert tk.karar_ozeti([s], _not) == {g: [] for g in tk.GRUPLAR}
+    assert tk.karar_ozeti([s]) == {g: [] for g in tk.GRUPLAR}
 
 
 def test_row_profit_and_loss():
-    idx = pd.bdate_range("2025-01-01", periods=200)
+    idx = pd.bdate_range("2025-01-01", periods=300)
     df = pd.DataFrame({"Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.0, "Volume": 1e6}, index=idx)
     df.iloc[-1, df.columns.get_loc("Close")] = 110.0
-    s = tk.satir(tk.yeni_kayit("TEST", alis=100, adet=10), df, None)
+    s = tk.satir(tk.yeni_kayit("TEST", alis=100, adet=10), df)
     assert s["kz_pct"] == pytest.approx(10.0) and s["kz_tl"] == pytest.approx(100.0)
     assert s["degisim"] == pytest.approx(10.0)
-    assert s["kisa"] is not None and s["orta"] is None  # endeks yoksa orta vade hesaplanmaz
+    assert s["kisa"] is not None and s["orta"] is not None  # 300 gün = 60 hafta
